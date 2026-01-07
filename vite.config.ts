@@ -10,16 +10,18 @@ const __dirname = path.dirname(__filename);
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // Carga las variables de entorno para que estén disponibles
-  const env = loadEnv(mode, (process as any).cwd(), '');
+  const env = loadEnv(mode, path.resolve(), '');
 
   return {
     plugins: [react()],
+    base: './', // Asegura rutas relativas correctas
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './'),
       },
     },
     build: {
+      target: 'esnext',
       outDir: 'dist',
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
