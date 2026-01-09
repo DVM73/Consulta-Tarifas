@@ -82,7 +82,7 @@ export const ReadOnlyGroupsList: React.FC<{ groups: Group[] }> = ({ groups }) =>
     </div>
 );
 
-// --- MODAL DE CONFIRMACIÓN (ESTILO ORIGINAL) ---
+// --- MODAL DE CONFIRMACIÓN ---
 const ConfirmModal: React.FC<{ 
     isOpen: boolean, 
     title: string, 
@@ -443,25 +443,53 @@ export const GroupsList: React.FC<{ groups: Group[] } & ViewProps> = ({ groups, 
     );
 };
 
-// --- FUNCIÓN DE PARSEO CSV ---
+// --- FUNCIÓN DE PARSEO CSV ROBUSTA ---
+const normalizeHeader = (h: string): string => {
+    const clean = h.trim().toLowerCase().replace(/^"|"$/g, '').replace(/\./g, '');
+    
+    // Mapeo inteligente de cabeceras comunes a las claves internas
+    if (clean.includes('referencia') || clean === 'ref') return 'Referencia';
+    if (clean.includes('seccion') || clean.includes('sección')) return 'Sección';
+    if (clean.includes('descripcion') || clean.includes('descripción') || clean === 'desc') return 'Descripción';
+    if (clean.includes('familia')) return 'Familia';
+    if (clean.includes('ult') && (clean.includes('costo') || clean.includes('coste'))) return 'Ult. Costo';
+    if (clean.includes('ult') && clean.includes('pro')) return 'Ult.Pro';
+    if (clean === 'iva') return 'IVA';
+    
+    // Para Tarifas
+    if (clean === 'cod' || clean === 'código') return 'Cod.';
+    if (clean.includes('tienda') || clean.includes('centro')) return 'Tienda';
+    if (clean.includes('cod') && clean.includes('art')) return 'Cód. Art.';
+    if (clean === 'pvp' || clean === 'p.v.p.') return 'P.V.P.';
+    if (clean.includes('oferta') && clean.includes('pvp')) return 'PVP Oferta';
+    if (clean.includes('ini') && clean.includes('ofe')) return 'Fec.Ini.Ofe.';
+    if (clean.includes('fin') && clean.includes('ofe')) return 'Fec.Fin.Ofe.';
+
+    return h.trim().replace(/^"|"$/g, ''); // Si no coincide, devolvemos limpio
+};
+
 const parseCSV = (content: string): any[] => {
     const lines = content.split('\n').filter(l => l.trim());
     if (lines.length === 0) return [];
     
     // Detectamos si es separado por coma o punto y coma
     const separator = lines[0].includes(';') ? ';' : ',';
-    const headers = lines[0].split(separator).map(h => h.trim().replace(/^"|"$/g, ''));
+    // Normalizamos las cabeceras
+    const rawHeaders = lines[0].split(separator);
+    const headers = rawHeaders.map(normalizeHeader);
     
+    console.log("Cabeceras detectadas (Original -> Normalizada):");
+    rawHeaders.forEach((h, i) => console.log(`${h} -> ${headers[i]}`));
+
     return lines.slice(1).map(line => {
-        // Expresión regular para separar respetando comillas si fuera necesario, 
-        // pero para mantenerlo simple y funcional con la exportación actual:
+        // Separación simple (nota: esto falla con comas dentro de comillas, pero para este caso de uso suele bastar)
+        // Para ser más robusto en el futuro se podría usar una librería, pero mantendremos "sin deps externas"
         const values = line.split(separator);
         const obj: any = {};
         headers.forEach((h, i) => {
             let val = values[i]?.trim() || '';
-            // Limpiar comillas si vienen del CSV
             val = val.replace(/^"|"$/g, '');
-            obj[h] = val;
+            if (h) obj[h] = val;
         });
         return obj;
     });
@@ -488,8 +516,15 @@ export const DataUploadView: React.FC = () => {
                 const parsed = parseCSV(text);
                 
                 if (type === 'art') {
+                    // Validación simple: ¿Tiene referencia?
+                    if (parsed.length > 0 && !parsed[0].Referencia) {
+                         alert("⚠️ Advertencia: No se detectó la columna 'Referencia'. Revisa las cabeceras del CSV.");
+                    }
                     setPendingArticulos(parsed as Articulo[]);
                 } else {
+                    if (parsed.length > 0 && (!parsed[0].Tienda && !parsed[0]['Cód. Art.'])) {
+                         alert("⚠️ Advertencia: No se detectaron columnas clave (Tienda, Cód. Art.). Revisa el CSV.");
+                    }
                     setPendingTarifas(parsed as Tarifa[]);
                 }
             } catch (error) {
