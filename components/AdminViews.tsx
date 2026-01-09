@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, PointOfSale, Group, Report, AppData, UserRole, Departamento, Backup } from '../types';
+import { User, PointOfSale, Group, Report, AppData, UserRole, Departamento, Backup, Articulo, Tarifa } from '../types';
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
 import PlusIcon from './icons/PlusIcon';
@@ -443,30 +443,93 @@ export const GroupsList: React.FC<{ groups: Group[] } & ViewProps> = ({ groups, 
     );
 };
 
+// --- FUNCIÓN DE PARSEO CSV ---
+const parseCSV = (content: string): any[] => {
+    const lines = content.split('\n').filter(l => l.trim());
+    if (lines.length === 0) return [];
+    
+    // Detectamos si es separado por coma o punto y coma
+    const separator = lines[0].includes(';') ? ';' : ',';
+    const headers = lines[0].split(separator).map(h => h.trim().replace(/^"|"$/g, ''));
+    
+    return lines.slice(1).map(line => {
+        // Expresión regular para separar respetando comillas si fuera necesario, 
+        // pero para mantenerlo simple y funcional con la exportación actual:
+        const values = line.split(separator);
+        const obj: any = {};
+        headers.forEach((h, i) => {
+            let val = values[i]?.trim() || '';
+            // Limpiar comillas si vienen del CSV
+            val = val.replace(/^"|"$/g, '');
+            obj[h] = val;
+        });
+        return obj;
+    });
+};
+
 export const DataUploadView: React.FC = () => {
-    const [articulosCount, setArticulosCount] = useState<number | null>(null);
-    const [tarifasCount, setTarifasCount] = useState<number | null>(null);
+    const [pendingArticulos, setPendingArticulos] = useState<Articulo[] | null>(null);
+    const [pendingTarifas, setPendingTarifas] = useState<Tarifa[] | null>(null);
+    
     const [updating, setUpdating] = useState(false);
     const [success, setSuccess] = useState(false);
     
     const fileArticulosRef = useRef<HTMLInputElement>(null);
     const fileTarifasRef = useRef<HTMLInputElement>(null);
 
-    const handleFileChange = (type: 'art' | 'tar') => {
-        if (type === 'art') setArticulosCount(1131);
-        else setTarifasCount(5434);
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'art' | 'tar') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const text = event.target?.result as string;
+                const parsed = parseCSV(text);
+                
+                if (type === 'art') {
+                    setPendingArticulos(parsed as Articulo[]);
+                } else {
+                    setPendingTarifas(parsed as Tarifa[]);
+                }
+            } catch (error) {
+                console.error("Error parsing CSV", error);
+                alert("Error al leer el archivo CSV. Asegúrate de que el formato sea correcto.");
+            }
+        };
+        // Leemos como texto (UTF-8 por defecto)
+        reader.readAsText(file);
     };
 
-    const handleUpdate = () => {
-        if (!articulosCount || !tarifasCount) return;
+    const handleUpdate = async () => {
+        if (!pendingArticulos && !pendingTarifas) return;
         setUpdating(true);
-        setTimeout(() => {
-            setUpdating(false);
+        
+        try {
+            const updates: Partial<AppData> = {};
+            if (pendingArticulos) updates.articulos = pendingArticulos;
+            if (pendingTarifas) updates.tarifas = pendingTarifas;
+            
+            await saveAllData(updates);
+            
             setSuccess(true);
-        }, 1500);
+            setTimeout(() => setSuccess(false), 5000);
+            
+            // Limpiar estados pendientes
+            setPendingArticulos(null);
+            setPendingTarifas(null);
+            if (fileArticulosRef.current) fileArticulosRef.current.value = '';
+            if (fileTarifasRef.current) fileTarifasRef.current.value = '';
+            
+        } catch (error) {
+            console.error("Error saving data", error);
+            alert("Hubo un error al guardar los datos en la base de datos.");
+        } finally {
+            setUpdating(false);
+        }
     };
 
-    const canUpdate = articulosCount !== null && tarifasCount !== null;
+    const canUpdate = (pendingArticulos !== null || pendingTarifas !== null);
 
     return (
         <div className="bg-white dark:bg-slate-800 p-12 rounded-xl shadow-md border border-gray-100 dark:border-slate-700 max-w-4xl mx-auto text-center animate-fade-in">
@@ -476,15 +539,15 @@ export const DataUploadView: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
-                <div className={`border-2 border-dashed rounded-xl p-8 transition-colors flex flex-col items-center justify-center min-h-[160px] ${articulosCount ? 'border-green-500 bg-green-50/10' : 'border-gray-200 dark:border-slate-700'}`}>
-                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-4">Archivo de Artículos (CSV/JSON)</p>
+                <div className={`border-2 border-dashed rounded-xl p-8 transition-colors flex flex-col items-center justify-center min-h-[160px] ${pendingArticulos ? 'border-green-500 bg-green-50/10' : 'border-gray-200 dark:border-slate-700'}`}>
+                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-4">Archivo de Artículos (CSV)</p>
                     <button onClick={() => fileArticulosRef.current?.click()} className="bg-brand-50 text-brand-600 px-6 py-2 rounded-lg font-bold text-xs shadow-sm hover:bg-brand-100 transition-all border border-brand-200">Seleccionar Archivo</button>
-                    <input type="file" ref={fileArticulosRef} className="hidden" onChange={() => handleFileChange('art')} />
+                    <input type="file" ref={fileArticulosRef} className="hidden" accept=".csv,.txt" onChange={(e) => handleFileChange(e, 'art')} />
                     <div className="mt-4 flex items-center gap-2">
-                        {articulosCount ? (
+                        {pendingArticulos ? (
                             <span className="text-green-600 font-bold text-xs flex items-center gap-1.5 animate-fade-in">
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path></svg>
-                                {articulosCount} artículos leídos
+                                {pendingArticulos.length} artículos leídos
                             </span>
                         ) : (
                             <span className="text-gray-400 text-xs font-medium">Ningún archivo cargado</span>
@@ -492,15 +555,15 @@ export const DataUploadView: React.FC = () => {
                     </div>
                 </div>
 
-                <div className={`border-2 border-dashed rounded-xl p-8 transition-colors flex flex-col items-center justify-center min-h-[160px] ${tarifasCount ? 'border-green-500 bg-green-50/10' : 'border-gray-200 dark:border-slate-700'}`}>
-                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-4">Archivo de Tarifas (CSV/JSON)</p>
+                <div className={`border-2 border-dashed rounded-xl p-8 transition-colors flex flex-col items-center justify-center min-h-[160px] ${pendingTarifas ? 'border-green-500 bg-green-50/10' : 'border-gray-200 dark:border-slate-700'}`}>
+                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mb-4">Archivo de Tarifas (CSV)</p>
                     <button onClick={() => fileTarifasRef.current?.click()} className="bg-brand-50 text-brand-600 px-6 py-2 rounded-lg font-bold text-xs shadow-sm hover:bg-brand-100 transition-all border border-brand-200">Seleccionar Archivo</button>
-                    <input type="file" ref={fileTarifasRef} className="hidden" onChange={() => handleFileChange('tar')} />
+                    <input type="file" ref={fileTarifasRef} className="hidden" accept=".csv,.txt" onChange={(e) => handleFileChange(e, 'tar')} />
                     <div className="mt-4 flex items-center gap-2">
-                        {tarifasCount ? (
+                        {pendingTarifas ? (
                             <span className="text-green-600 font-bold text-xs flex items-center gap-1.5 animate-fade-in">
                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"></path></svg>
-                                {tarifasCount} tarifas leídos
+                                {pendingTarifas.length} tarifas leídos
                             </span>
                         ) : (
                             <span className="text-gray-400 text-xs font-medium">Ningún archivo cargado</span>
@@ -514,7 +577,7 @@ export const DataUploadView: React.FC = () => {
                 disabled={!canUpdate || updating}
                 className={`w-full max-sm mx-auto py-4 rounded-lg font-bold uppercase text-xs tracking-widest transition-all shadow-lg ${canUpdate ? 'bg-brand-500 text-white shadow-brand-500/20 hover:bg-brand-600 active:scale-95' : 'bg-slate-400 text-white cursor-not-allowed opacity-80'}`}
             >
-                {updating ? 'Procesando...' : 'ACTUALIZAR BASE DE DATOS'}
+                {updating ? 'Procesando y Guardando...' : 'ACTUALIZAR BASE DE DATOS'}
             </button>
 
             {success && (
