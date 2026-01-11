@@ -12,13 +12,10 @@ import {
 
 // Importación datos semilla SOLO para inicialización extrema si no hay DB
 import { usuariosRawData } from '../data/usuarios';
-import { articulosRawData } from '../data/articulos';
-import { tarifasRawData } from '../data/tarifas';
 
 const DATA_KEY = 'appData';
 const DB_NAME = 'ConsultaTarifasDB_v9'; 
 const STORE_NAME = 'appDataStore';
-const LOCAL_UPDATED_KEY = 'appData_last_local_update';
 
 let appDataPromise: Promise<AppData> | null = null;
 let dbInstance: IDBDatabase | null = null;
@@ -149,11 +146,10 @@ async function loadAndInitializeData(): Promise<AppData> {
         return sanitizeAppData(cachedLocal);
     }
 
-    // 3. FALLBACK DE EMERGENCIA (Solo si no hay NADA)
-    // Esto solo debería ocurrir la primera vez que se abre la app sin internet y sin configuración
-    console.warn("⚠️ No se encontraron datos. Inicializando con semilla básica.");
+    // 3. FALLBACK DE EMERGENCIA (Solo usuarios básicos para poder entrar a configurar)
+    console.warn("⚠️ No se encontraron datos en Firebase ni en caché. Cargando usuarios mínimos.");
     const initial = sanitizeAppData({
-        users: usuariosRawData.users,
+        users: usuariosRawData.users, // Mantenemos solo usuarios para poder hacer login inicial
         pos: usuariosRawData.pos,
         articulos: [],
         tarifas: [],
@@ -181,30 +177,14 @@ export async function saveAllData(updates: Partial<AppData>): Promise<void> {
     if (db) {
         try {
             console.log("☁️ Guardando datos en Firebase...");
-            const promises = [];
-
-            // Guardado optimizado: Solo actualizar lo que cambió (simplificado aquí como sobrescritura por bloques)
-            if (updates.articulos) {
-                // Nota: Para grandes volúmenes en producción real se usaría batching, 
-                // aquí sobrescribimos el documento "main" como backup rápido y podríamos iterar colecciones.
-                // Dado que el usuario pidió "trabajar con Firebase directamente",
-                // idealmente deberíamos borrar la colección y recrearla o usar batch, 
-                // pero para mantener la app responsive, actualizamos el documento 'main' que sirve de caché rápida
-                // y podríamos implementar un guardado granular si fuera necesario.
-                
-                // Opción Híbrida Robusta: Guardar en documento 'main' (rápido y atómico)
-                // Y si se requiere, iterar para guardar documentos individuales (lento).
-                // Por ahora, priorizamos consistencia:
-                await setDoc(doc(db, "appData", "main"), { 
-                    ...updated, 
-                    serverTimestamp: FirestoreTimestamp.fromMillis(now) 
-                });
-            } else {
-                 await setDoc(doc(db, "appData", "main"), { 
-                    ...updated, 
-                    serverTimestamp: FirestoreTimestamp.fromMillis(now) 
-                });
-            }
+            
+            // Si es una carga masiva (artículos o tarifas), guardar en documento main por rendimiento
+            // en esta versión simplificada, pero manteniendo la estructura para futuras expansiones.
+            await setDoc(doc(db, "appData", "main"), { 
+                ...updated, 
+                serverTimestamp: FirestoreTimestamp.fromMillis(now) 
+            });
+            
             console.log("✅ Datos sincronizados.");
         } catch (e) {
             console.error("❌ Error guardando en Firebase:", e);
