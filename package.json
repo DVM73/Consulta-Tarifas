@@ -1,9 +1,13 @@
-
 {
   "name": "consulta-tarifas-app",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DVM73/Consulta-Tarifas.git"
+  },
+  "homepage": "https://github.com/DVM73/Consulta-Tarifas",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
