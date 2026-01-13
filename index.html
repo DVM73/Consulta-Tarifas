@@ -9,49 +9,21 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2921/2921222.png" />
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2921/2921222.png" />
-
-    <!-- Tailwind CSS (Script CDN para desarrollo rápido, recomendado instalar vía PostCSS para producción) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                50: '#f5f7ff', 100: '#ebf0fe', 200: '#dae3ff', 300: '#b8c7ff', 400: '#8ca1ff',
-                500: '#5e71ff', 600: '#4f46e5', 700: '#3d34c1', 800: '#332c9c', 900: '#2e2a7d',
-              },
-            },
-          },
-        },
-      }
-    </script>
     
     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
-    <style>
-      :root { font-family: 'Inter', sans-serif; }
-      body { background-color: #f3f4f6; margin: 0; padding: 0; -webkit-font-smoothing: antialiased; }
-      .animate-fade-in { animation: fade-in 0.2s ease-out forwards; }
-      @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-      .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-      .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-      .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #475569; }
-    </style>
 <script type="importmap">
 {
   "imports": {
-    "path": "https://esm.sh/path@^0.12.7",
-    "react/": "https://esm.sh/react@^19.2.3/",
     "react": "https://esm.sh/react@^19.2.3",
     "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
     "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "@emailjs/browser": "https://esm.sh/@emailjs/browser@^4.4.1",
     "firebase/": "https://esm.sh/firebase@^12.7.0/",
     "vite": "https://esm.sh/vite@^7.3.1",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "url": "https://esm.sh/url@^0.11.4",
-    "@emailjs/browser": "https://esm.sh/@emailjs/browser@^4.4.1"
+    "path": "https://esm.sh/path@^0.12.7",
+    "url": "https://esm.sh/url@^0.11.4"
   }
 }
 </script>

@@ -2,8 +2,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import './index.css';
 
-console.log("🚀 Motor de renderizado estable v1.3.2...");
+console.log("🚀 Motor de renderizado estable v2.0.0...");
 
 // Registro de Service Worker para PWA (solo en producción o dominios seguros)
 if ('serviceWorker' in navigator && window.location.hostname !== 'localhost' && !window.location.hostname.includes('ai.studio')) {
