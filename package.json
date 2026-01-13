@@ -20,7 +20,8 @@
     "firebase": "^11.0.2",
     "jspdf": "^2.5.1",
     "jspdf-autotable": "^3.8.2",
-    "lucide-react": "^0.344.0"
+    "lucide-react": "^0.344.0",
+    "@emailjs/browser": "^4.4.1"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
