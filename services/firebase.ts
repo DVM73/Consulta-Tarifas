@@ -16,25 +16,29 @@ const firebaseConfig = {
 
 let db: Firestore | null = null;
 
-// Validación estricta: Comprobamos que existan Y que no sean la cadena "undefined" (común en fallos de build)
+// Validación estricta
 const isValidConfig = 
     firebaseConfig.apiKey && 
     firebaseConfig.apiKey !== 'undefined' && 
+    firebaseConfig.apiKey !== '' &&
     firebaseConfig.projectId &&
     firebaseConfig.projectId !== 'undefined';
+
+console.log("🔍 Diagnóstico Firebase (v2.0.2):");
+console.log("- API Key detectada:", firebaseConfig.apiKey ? "SÍ (Oculta)" : "NO");
+console.log("- Project ID detectado:", firebaseConfig.projectId ? `SÍ (${firebaseConfig.projectId})` : "NO");
 
 if (isValidConfig) {
     try {
         const apps = getApps();
         const app: FirebaseApp = apps.length === 0 ? initializeApp(firebaseConfig) : getApp();
         db = getFirestore(app);
-        console.log("🟢 Firebase Conectado.");
+        console.log("🟢 Firebase Conectado correctamente.");
     } catch (e) {
-        console.warn("🔴 Error de conexión con Firebase:", e);
+        console.error("🔴 Error de conexión con Firebase:", e);
     }
 } else {
-    console.warn("🟡 Firebase no configurado: Faltan variables de entorno o son inválidas.");
-    console.warn("Debug Config:", JSON.stringify(firebaseConfig, null, 2));
+    console.warn("🟡 Firebase no configurado. Se usará modo DEMO/OFFLINE.");
 }
 
 export { db };
