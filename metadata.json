@@ -1,0 +1,5 @@
+{
+  "name": "GitHub Repo Analyzer AI",
+  "description": "Importa y analiza repositorios de GitHub utilizando Gemini AI. Chatea con tu código para entenderlo mejor.",
+  "requestFramePermissions": []
+}
