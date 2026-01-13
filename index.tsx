@@ -4,15 +4,32 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-console.log("🚀 Motor de renderizado estable v2.0.0...");
+console.log("🚀 Iniciando App v2.0.3...");
 
-// Registro de Service Worker para PWA (solo en producción o dominios seguros)
-if ('serviceWorker' in navigator && window.location.hostname !== 'localhost' && !window.location.hostname.includes('ai.studio')) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js')
-      .then(reg => console.log('✅ Service Worker listo:', reg.scope))
-      .catch(err => console.warn('⚠️ Service Worker omitido en este entorno.'));
-  });
+const isProduction = window.location.hostname !== 'localhost' && 
+                     !window.location.hostname.includes('ai.studio') && 
+                     !window.location.hostname.includes('googleusercontent.com') &&
+                     !window.location.hostname.includes('webcontainer.io');
+
+// GESTIÓN DE SERVICE WORKER (CACHÉ)
+if ('serviceWorker' in navigator) {
+  if (isProduction) {
+    // Solo registrar en producción real (dominio final)
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(reg => console.log('✅ Service Worker registrado (Prod):', reg.scope))
+        .catch(err => console.warn('⚠️ Fallo al registrar SW:', err));
+    });
+  } else {
+    // EN PREVIEW/DEV: DESREGISTRAR ACTIVAMENTE PARA EVITAR CACHÉ OBSOLETA
+    console.log("🧹 Entorno de Desarrollo/Preview detectado: Eliminando Service Workers...");
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+      for(let registration of registrations) {
+        registration.unregister();
+        console.log("🗑️ Service Worker eliminado para asegurar recarga limpia.");
+      }
+    });
+  }
 }
 
 const container = document.getElementById('root');
