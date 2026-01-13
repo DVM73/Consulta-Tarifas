@@ -1,39 +1,101 @@
-export interface FileNode {
-  path: string;
-  mode: string;
-  type: 'blob' | 'tree';
-  sha: string;
-  size?: number;
-  url: string;
-}
 
-export interface RepoContext {
-  owner: string;
-  name: string;
-  description?: string;
-  files: Map<string, string>; // path -> content
-  structure: FileNode[]; // Changed from string[] to FileNode[] to keep SHAs available
+export type UserRole = 'Normal' | 'Supervisor' | 'admin';
+export type Departamento = 'Carnicero/a' | 'Charcutero/a' | 'Supervisor' | 'Carnicero/a y Charcutero/a' | string;
+export type Zona = string;
+
+export interface User {
+  id: string;
+  nombre: string;
+  clave: string;
+  zona: Zona;
+  grupo: string;
+  departamento: Departamento;
+  rol: UserRole;
+  verPVP: boolean;
 }
 
 export interface Message {
   id: string;
-  role: 'user' | 'model';
-  content: string;
+  text: string;
+  sender: 'user' | 'bot';
   timestamp: number;
-  isLoading?: boolean;
 }
 
-export enum AppState {
-  IDLE = 'IDLE',
-  IMPORTING = 'IMPORTING',
-  ANALYZING = 'ANALYZING',
-  READY = 'READY',
-  ERROR = 'ERROR'
+export type AdminView = 
+  | 'menu'
+  | 'users'
+  | 'pos'
+  | 'groups'
+  | 'upload'
+  | 'export'
+  | 'backup'
+  | 'settings'
+  | 'password'
+  | 'reports';
+
+export interface Articulo {
+  Referencia: string;
+  Sección: string;
+  Descripción: string;
+  Familia: string;
+  'Ult.Pro': string;
+  'Ult. Costo': string;
+  IVA: string;
 }
 
-export interface ImportConfig {
-  repoUrl: string;
-  githubToken?: string;
+export interface PointOfSale {
+  id: string;
+  código: string;
+  zona: Zona;
+  grupo: string;
+  dirección: string;
+  población: string;
 }
 
-export type Tab = 'chat' | 'code' | 'github';
+export interface Tarifa {
+  'Cod.': string;
+  Tienda: string;
+  'Cód. Art.': string;
+  Descripción: string;
+  'P.V.P.': string;
+  'PVP Oferta': string;
+  'Fec.Ini.Ofe.': string;
+  'Fec.Fin.Ofe.': string;
+}
+
+export interface Group {
+    id: string;
+    nombre: string;
+}
+
+export interface Report {
+    id: string;
+    firestoreId?: string;
+    date: string;
+    supervisorName: string;
+    zoneFilter: string;
+    type: 'Completo' | 'Solo Notas';
+    csvContent: string;
+    isCompressed?: boolean;
+    read: boolean;
+}
+
+export interface Backup {
+    id: string;
+    nombre: string;
+    data: any;
+    fecha: string;
+}
+
+export interface AppData {
+    users: User[];
+    pos: PointOfSale[];
+    articulos: Articulo[];
+    tarifas: Tarifa[];
+    groups: Group[];
+    companyName?: string;
+    notificationEmail?: string;
+    lastUpdated?: string;
+    reports?: Report[];
+    backups?: Backup[];
+}

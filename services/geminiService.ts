@@ -1,88 +1,78 @@
-import { GoogleGenAI, Chat } from "@google/genai";
-import { RepoContext } from '../types';
 
-export class GeminiService {
-  private ai: GoogleGenAI;
-  private chatSession: Chat | null = null;
-  private modelId = 'gemini-3-pro-preview'; 
+import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 
-  constructor() {
-    const apiKey = process.env.API_KEY || '';
-    if (!apiKey) {
-      console.error("API_KEY is missing from environment variables.");
-    }
-    this.ai = new GoogleGenAI({ apiKey });
-  }
+// Initialize the Google GenAI client directly using the environment variable as per guidelines.
+// Always use a named parameter object for the constructor.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  async initializeContext(repoContext: RepoContext): Promise<void> {
-    const fileList = repoContext.structure.map(f => f.path).join('\n');
-    
-    let codeContent = "";
-    repoContext.files.forEach((content, path) => {
-      codeContent += `\n--- START FILE: ${path} ---\n${content}\n--- END FILE: ${path} ---\n`;
-    });
+let chatSession: Chat | null = null;
 
-    const systemInstruction = `You are an expert Senior Software Engineer acting as an Automated Code Agent.
-You are connected to a GitHub repository "${repoContext.owner}/${repoContext.name}".
+// Función para iniciar o reiniciar el chat con un contexto específico (datos de la pantalla)
+export async function startNewChat(contextData: string = ""): Promise<void> {
+    // Instrucción del sistema: Analista de Datos + Asistente General en Español
+    const systemInstruction = `
+Eres Gemini, un asistente de inteligencia artificial integrado en la aplicación corporativa "Consulta de Tarifas".
 
-CONTEXT:
-File Structure:
-${fileList}
+TU COMPORTAMIENTO DEBE SER:
+1. **Idioma:** DEBES RESPONDER SIEMPRE EN ESPAÑOL. No importa el idioma en el que te hablen, tu respuesta debe ser en un español claro y profesional.
+2. **Versátil:** Puedes responder a CUALQUIER pregunta, ya sea sobre la aplicación, sobre los datos que ves, o temas generales (cultura, redacción, ayuda técnica, etc.).
+3. **Analítico (Si hay datos):** A continuación se te proporcionará un "CONTEXTO DE DATOS ACTUAL". Si contiene información, úsala para responder preguntas sobre precios, productos o estadísticas. Si está vacío, actúa como un chat normal.
+4. **Profesional y Conciso:** Tus respuestas deben ser útiles y directas.
 
-File Contents:
-${codeContent}
+CONTEXTO DE DATOS ACTUAL (Lo que ve el usuario):
+${contextData ? contextData : "El usuario no está visualizando datos específicos ahora mismo."}
 
-CORE OBJECTIVE:
-Your job is to MODIFY the code based on user requests.
-
-CRITICAL INSTRUCTION FOR FILE UPDATES:
-When you want to change a file, you MUST return the COMPLETE updated content of that file wrapped in specific XML-like tags.
-DO NOT return diffs. DO NOT return snippets. Return the FULL VALID FILE CONTENT.
-
-Format:
-<<<FILE:path/to/file.ext>>>
-... full content ...
-<<<END_FILE>>>
-
-Example:
-User: "Change the button color to red in Button.tsx"
-You:
-"Updated the button style."
-<<<FILE:src/components/Button.tsx>>>
-import React from 'react';
-export const Button = () => <button className="bg-red-500">Click me</button>;
-<<<END_FILE>>>
-
-If you do not use this format exactly, the changes will NOT be applied to the system.
-`;
+EJEMPLOS DE INTERACCIÓN:
+- Usuario: "¿Qué precio tiene el jamón?" -> (Buscas en el contexto y respondes en español).
+- Usuario: "Write an email for employees." -> (Redactas el correo EN ESPAÑOL).
+- Usuario: "Hola, ¿qué puedes hacer?" -> (Te presentas en español).
+    `;
 
     try {
-      this.chatSession = this.ai.chats.create({
-        model: this.modelId,
-        config: {
-          systemInstruction,
-          temperature: 0.1, 
-        },
-      });
+        // Correct usage of chats.create with gemini-3-flash-preview and systemInstruction in config.
+        chatSession = ai.chats.create({
+            model: 'gemini-3-flash-preview',
+            config: {
+                systemInstruction: systemInstruction,
+                temperature: 0.7,
+            },
+        });
+        console.log("Chat de Gemini inicializado correctamente en español.");
     } catch (error) {
-      console.error("Failed to initialize Gemini chat", error);
-      throw error;
+        console.error("Error al iniciar sesión de chat Gemini:", error);
+        chatSession = null;
     }
-  }
-
-  async sendMessage(message: string): Promise<string> {
-    if (!this.chatSession) {
-      throw new Error("Chat session not initialized.");
-    }
-
-    try {
-      const result = await this.chatSession.sendMessage({ message });
-      return result.text || "No response generated.";
-    } catch (error) {
-      console.error("Gemini sendMessage error", error);
-      throw error;
-    }
-  }
 }
 
-export const geminiService = new GeminiService();
+export async function getBotResponse(message: string): Promise<string> {
+  try {
+    if (!chatSession) {
+        await startNewChat();
+    }
+
+    if (!chatSession) {
+        throw new Error("No se pudo establecer la sesión de chat.");
+    }
+
+    // sendMessage returns GenerateContentResponse
+    const result: GenerateContentResponse = await chatSession.sendMessage({ message: message });
+    
+    // The simplest and most direct way to get the generated text content is by accessing the .text property.
+    // Do not call .text() as it is a getter property.
+    if (result && result.text) {
+        return result.text;
+    } else {
+        return "No he recibido una respuesta válida. Por favor, inténtalo de nuevo.";
+    }
+
+  } catch (error: any) {
+    console.error("Error al comunicarse con la API de Gemini:", error);
+    chatSession = null;
+
+    if (error.message && error.message.includes('API key')) {
+        return "Error de autenticación con la IA. Verifica la API Key.";
+    }
+    
+    return "Lo siento, ha ocurrido un error de conexión con la IA. Por favor, inténtalo de nuevo en unos segundos.";
+  }
+}

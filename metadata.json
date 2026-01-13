@@ -1,5 +1,5 @@
 {
-  "name": "GitHub Repo Analyzer AI",
-  "description": "Importa y analiza repositorios de GitHub utilizando Gemini AI. Chatea con tu código para entenderlo mejor.",
+  "name": "Consulta Tarifas",
+  "description": "Sistema avanzado de gestión de tarifas e inventario con inteligencia artificial Gemini.",
   "requestFramePermissions": []
 }
