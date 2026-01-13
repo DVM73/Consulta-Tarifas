@@ -132,23 +132,22 @@ async function loadAndInitializeData(): Promise<AppData> {
             }
 
         } catch (e) {
-            console.error("❌ Error CRÍTICO conectando a Firebase (posible falta de permisos o error de red):", e);
-            // Si hay error, pasamos al fallback local
+            console.error("❌ Error de red conectando a Firebase. Intentando modo local.", e);
         }
     } else {
-        console.warn("⚠️ Firebase DB no inicializada. Revisa las variables de entorno.");
+        console.warn("🟡 Firebase no configurado. Iniciando Modo Local/Offline.");
     }
 
     // 2. FALLBACK A CACHÉ LOCAL (OFFLINE REAL)
     const cachedLocal = await dbGet(DATA_KEY);
     if (cachedLocal && cachedLocal.users && cachedLocal.users.length > 0) {
-        console.log("📂 Usando datos en caché local (Offline).");
+        console.log("📂 Usando datos en caché local (Offline/Local).");
         return sanitizeAppData(cachedLocal);
     }
 
     // 3. ESTADO DEMO (Sin conexión y Sin caché)
     // En lugar de "Sistema Vacío", cargamos los datos de prueba importados.
-    console.log("⚠️ Usando DATOS DEMO (Modo Presentación).");
+    console.log("🚀 Inicializando con Datos Demo.");
 
     const demoData = sanitizeAppData({
         users: usuariosRawData.users,
@@ -156,7 +155,7 @@ async function loadAndInitializeData(): Promise<AppData> {
         groups: usuariosRawData.groups,
         articulos: articulosRawData,
         tarifas: tarifasRawData,
-        companyName: "Paraíso de la Carne (DEMO)",
+        companyName: "Paraíso de la Carne (DEMO LOCAL)",
         lastUpdated: "Datos de Demostración"
     });
     
@@ -176,14 +175,15 @@ export async function saveAllData(updates: Partial<AppData>): Promise<void> {
     const now = Date.now();
     const updated = sanitizeAppData({ ...current, ...updates, lastUpdated: new Date().toLocaleString() });
     
-    // 1. Guardar en Caché Local
+    // 1. Guardar en Caché Local (Siempre funciona)
     await dbPut(DATA_KEY, updated);
     appDataPromise = Promise.resolve(updated);
+    console.log("💾 Guardado local exitoso.");
 
-    // 2. Guardar en Firebase DIRECTAMENTE en colecciones
+    // 2. Guardar en Firebase (Solo si hay conexión y configuración)
     if (db) {
         try {
-            console.log("☁️ Guardando datos en Firebase...");
+            console.log("☁️ Sincronizando con nube...");
             
             // Guardamos siempre en el documento principal por seguridad/backup rápido
             await setDoc(doc(db, "appData", "main"), { 
@@ -191,14 +191,10 @@ export async function saveAllData(updates: Partial<AppData>): Promise<void> {
                 serverTimestamp: FirestoreTimestamp.fromMillis(now) 
             });
             
-            console.log("✅ Datos sincronizados.");
+            console.log("✅ Datos sincronizados con la nube.");
         } catch (e) {
-            console.error("❌ Error guardando en Firebase:", e);
-            // No mostramos alerta si sabemos que no hay configuración
-            // alert("Error de conexión al guardar en la nube. Los datos se han guardado localmente.");
+            console.warn("⚠️ No se pudo sincronizar con la nube (¿Modo Offline?). Los datos están seguros localmente.", e);
         }
-    } else {
-        console.log("💾 Guardado local (Modo Demo/Offline).");
     }
 }
 
@@ -208,6 +204,7 @@ export async function overwriteAllData(newData: AppData): Promise<void> {
     
     await dbPut(DATA_KEY, updated);
     appDataPromise = Promise.resolve(updated);
+    console.log("🔄 Base de datos sobrescrita localmente.");
     
     if (db) {
         try {
@@ -216,7 +213,7 @@ export async function overwriteAllData(newData: AppData): Promise<void> {
                 serverTimestamp: FirestoreTimestamp.fromMillis(now) 
             });
         } catch (e) {
-            console.warn("Error sobrescribiendo en nube:", e);
+            console.warn("⚠️ Error sobrescribiendo en nube:", e);
         }
     }
 }

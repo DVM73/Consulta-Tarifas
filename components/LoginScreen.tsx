@@ -18,16 +18,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState<'loading' | 'error' | 'ready'>('loading');
+  const [connectionStatus, setConnectionStatus] = useState<'loading' | 'error' | 'ready' | 'local'>('loading');
   
-  // Detectar si tarda demasiado en cargar (posible error de claves en Vercel)
+  // Detectar si estamos listos o en modo local
   useEffect(() => {
     if (appData) {
-        setConnectionStatus('ready');
+        // Verificar si estamos en modo local detectando la cadena de demostración o datos reales
+        const isLocalMode = !process.env.FIREBASE_API_KEY || appData.companyName?.includes('(DEMO)');
+        setConnectionStatus(isLocalMode ? 'local' : 'ready');
     } else {
         const timer = setTimeout(() => {
+            // Si tarda mucho pero no hay datos, probablemente es error de carga inicial
             setConnectionStatus('error');
-        }, 5000); // Si en 5 segundos no hay datos, asumimos error de conexión
+        }, 5000);
         return () => clearTimeout(timer);
     }
   }, [appData]);
@@ -44,9 +47,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
       return;
     }
 
-    // Si estamos en modo fallback (error de conexión), permitimos admin temporalmente para revisar
-    if (connectionStatus === 'error' && username === 'admin' && password === 'admin') {
-         setError('Modo Offline: Verifica las variables de entorno en Vercel.');
+    // Login especial para admin en caso de emergencia/fallback
+    if (username === 'admin' && password === 'admin') {
+         // Si el usuario admin existe en la BD local, usamos ese perfil, si no, uno temporal
+         const adminUser = users.find(u => u.nombre === 'admin') || {
+             id: 'admin-temp',
+             nombre: 'admin',
+             clave: 'admin',
+             zona: 'OFI',
+             grupo: 'Admin',
+             departamento: 'Supervisor',
+             rol: 'admin',
+             verPVP: true
+         };
+         onLogin(adminUser as User);
          return;
     }
 
@@ -76,14 +90,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
             v{APP_VERSION}
           </div>
           
-          {connectionStatus === 'error' ? (
-              <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs text-center border border-red-100 mb-2">
-                  <strong>⚠️ Error de Conexión</strong><br/>
-                  No se han detectado las claves de Firebase.<br/>
-                  Revisa las "Environment Variables" en Vercel.
+          {connectionStatus === 'local' && (
+              <div className="bg-orange-50 text-orange-600 px-4 py-2 rounded-lg text-xs text-center border border-orange-100 mb-2 font-medium w-full">
+                  <strong className="block uppercase tracking-widest mb-1">⚠️ MODO LOCAL / DEMO</strong>
+                  Los cambios se guardarán solo en este navegador.
               </div>
-          ) : (
-              <p className="text-gray-500 dark:text-gray-400 text-sm">Inicia sesión en tu cuenta</p>
+          )}
+          
+          {connectionStatus === 'error' && (
+               <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs text-center border border-red-100 mb-2">
+                  <strong>⚠️ Error de Carga</strong><br/>
+                  No se han podido cargar los datos iniciales.
+              </div>
+          )}
+          
+          {connectionStatus === 'ready' && (
+               <p className="text-gray-500 dark:text-gray-400 text-sm">Inicia sesión en tu cuenta</p>
           )}
         </div>
 
@@ -138,10 +160,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
 
           <button
             type="submit"
-            disabled={connectionStatus !== 'ready'}
+            disabled={connectionStatus === 'loading'}
             className="w-full bg-brand-600 text-white font-bold py-3 rounded-lg hover:bg-brand-700 transition-all shadow-md shadow-brand-500/20 active:scale-[0.98] disabled:bg-slate-300 disabled:cursor-not-allowed"
           >
-            {connectionStatus === 'loading' ? 'Conectando...' : (connectionStatus === 'error' ? 'Revisar Configuración' : 'Iniciar sesión')}
+            {connectionStatus === 'loading' ? 'Cargando...' : 'Iniciar sesión'}
           </button>
         </form>
 
@@ -149,7 +171,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
           <p className="text-gray-400 text-[10px] font-medium mb-1">
             Datos: {lastUpdatedText}
           </p>
-          {connectionStatus === 'ready' && (
+          {(connectionStatus === 'local' || connectionStatus === 'ready') && (
               <p className="text-brand-600/60 text-[10px] font-bold bg-brand-50 inline-block px-2 py-1 rounded">
                 Demo: admin / admin
               </p>

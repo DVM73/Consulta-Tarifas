@@ -765,7 +765,6 @@ export const ReportsInboxView: React.FC<{ reports: Report[], onUpdate: (u: Parti
 export const BackupView: React.FC<{ backups: Backup[], currentData: AppData, onUpdate: (u: Partial<AppData>) => void }> = ({ backups, currentData, onUpdate }) => {
     const [backupName, setBackupName] = useState('');
     const [restoring, setRestoring] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleCreateBackup = async () => {
         if (!backupName.trim()) return;
@@ -796,7 +795,10 @@ export const BackupView: React.FC<{ backups: Backup[], currentData: AppData, onU
     const handleImportBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        if (!window.confirm('⚠️ ATENCIÓN: Se borrarán los datos actuales para cargar los del archivo. ¿Deseas proceder?')) return;
+        if (!window.confirm('⚠️ ATENCIÓN: Se borrarán los datos actuales para cargar los del archivo. ¿Deseas proceder?')) {
+            e.target.value = ''; // Resetear el input si cancela
+            return;
+        }
         setRestoring(true);
         const reader = new FileReader();
         reader.onload = async (event) => {
@@ -804,7 +806,11 @@ export const BackupView: React.FC<{ backups: Backup[], currentData: AppData, onU
                 const json = JSON.parse(event.target?.result as string);
                 await overwriteAllData(json as AppData);
                 window.location.reload();
-            } catch (err) { alert('Archivo inválido.'); setRestoring(false); }
+            } catch (err) { 
+                alert('Archivo inválido o corrupto.'); 
+                setRestoring(false); 
+                e.target.value = ''; // Resetear
+            }
         };
         reader.readAsText(file);
     };
@@ -843,10 +849,21 @@ export const BackupView: React.FC<{ backups: Backup[], currentData: AppData, onU
                     )}
                 </div>
                 <div className="mt-12 pt-8 border-t dark:border-slate-700 w-full">
-                    <button onClick={() => fileInputRef.current?.click()} className="text-brand-600 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 mx-auto hover:bg-brand-50 px-6 py-3 rounded-lg transition-all border border-transparent hover:border-brand-200">
+                    {/* BOTÓN REPARADO: Usando label para disparar el input file nativo de forma fiable */}
+                    <label 
+                        htmlFor="restore-file-input" 
+                        className="cursor-pointer text-brand-600 font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 mx-auto hover:bg-brand-50 px-6 py-3 rounded-lg transition-all border border-transparent hover:border-brand-200"
+                    >
                         <UploadIcon className="w-5 h-5" /> Cargar archivo de copia externa
-                    </button>
-                    <input type="file" ref={fileInputRef} className="hidden" accept=".json" onChange={handleImportBackup} />
+                    </label>
+                    <input 
+                        id="restore-file-input" 
+                        type="file" 
+                        className="hidden" 
+                        accept=".json" 
+                        onClick={(e) => (e.currentTarget.value = '')} 
+                        onChange={handleImportBackup} 
+                    />
                 </div>
             </div>
         </div>
