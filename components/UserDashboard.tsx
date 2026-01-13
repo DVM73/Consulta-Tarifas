@@ -15,6 +15,7 @@ import CloseIcon from './icons/CloseIcon';
 import ArrowDownIcon from './icons/ArrowDownIcon';
 import { Tarifa, Articulo, PointOfSale, Report } from '../types';
 import { getAppData, saveAllData } from '../services/dataService';
+import emailjs from '@emailjs/browser';
 
 const formatCurrency = (value: string | number | undefined): string => {
     if (value === undefined || value === null || value === '') return '-';
@@ -45,6 +46,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const [isBotOpen, setIsBotOpen] = useState(false);
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [exportType, setExportType] = useState<'Completo' | 'Solo Notas'>('Completo');
+    const [isSending, setIsSending] = useState(false);
 
     useEffect(() => {
         getAppData().then(data => {
@@ -115,6 +117,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     };
 
     const handleSendToAdmin = async () => {
+        setIsSending(true);
         const newReport: Report = {
             id: Date.now().toString(),
             date: new Date().toLocaleString(),
@@ -124,10 +127,36 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             csvContent: generateCSV(),
             read: false
         };
-        const currentData = await getAppData();
-        await saveAllData({ reports: [newReport, ...(currentData.reports || [])] });
-        alert("✅ Listado enviado correctamente al administrador.");
-        setIsExportModalOpen(false);
+
+        try {
+            // 1. Guardar en Base de Datos (Firebase)
+            const currentData = await getAppData();
+            await saveAllData({ reports: [newReport, ...(currentData.reports || [])] });
+
+            // 2. Enviar Correo vía EmailJS
+            const serviceID = 'service_egg3xws';
+            const templateID = 'template_aogq9fr';
+            const publicKey = 's0Y3v_8CMdSiSPqVz';
+
+            const templateParams = {
+                supervisor: newReport.supervisorName,
+                zona: newReport.zoneFilter,
+                tipo: newReport.type,
+                fecha: newReport.date
+            };
+
+            await emailjs.send(serviceID, templateID, templateParams, publicKey);
+            console.log("📧 Correo enviado correctamente via EmailJS");
+            alert("✅ Listado enviado y administrador notificado por correo.");
+
+        } catch (error) {
+            console.error("❌ Error en el proceso de envío:", error);
+            // Aunque falle el correo, el listado se guardó en BD, así que avisamos con matiz
+            alert("⚠️ Listado guardado en la App, pero falló el envío del correo de aviso.");
+        } finally {
+            setIsSending(false);
+            setIsExportModalOpen(false);
+        }
     };
 
     if (loading) return <div className="h-screen flex items-center justify-center">Cargando...</div>;
@@ -231,9 +260,13 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                 <ArrowDownIcon className="w-4 h-4" />
                                 Descargar
                             </button>
-                            <button onClick={handleSendToAdmin} className="px-5 py-2.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-lg shadow-brand-600/20 transition-all uppercase tracking-widest flex items-center gap-2">
+                            <button 
+                                onClick={handleSendToAdmin} 
+                                disabled={isSending}
+                                className="px-5 py-2.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-lg shadow-brand-600/20 transition-all uppercase tracking-widest flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
                                 <MailIcon className="w-4 h-4"/>
-                                Enviar a Admin
+                                {isSending ? 'Enviando...' : 'Enviar a Admin'}
                             </button>
                         </div>
                     </div>
