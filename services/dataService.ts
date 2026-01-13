@@ -9,6 +9,9 @@ import {
     collection, 
     Timestamp as FirestoreTimestamp 
 } from "firebase/firestore";
+import { usuariosRawData } from '../data/usuarios';
+import { articulosRawData } from '../data/articulos';
+import { tarifasRawData } from '../data/tarifas';
 
 const DATA_KEY = 'appData';
 const DB_NAME = 'ConsultaTarifasDB_v9'; 
@@ -129,44 +132,38 @@ async function loadAndInitializeData(): Promise<AppData> {
             }
 
         } catch (e) {
-            console.error("❌ Error CRÍTICO conectando a Firebase:", e);
-            // Si hay error de red, pasamos al fallback local
+            console.error("❌ Error CRÍTICO conectando a Firebase (posible falta de permisos o error de red):", e);
+            // Si hay error, pasamos al fallback local
         }
     } else {
         console.warn("⚠️ Firebase DB no inicializada. Revisa las variables de entorno.");
     }
 
-    // 2. FALLBACK A CACHÉ LOCAL (OFFLINE)
+    // 2. FALLBACK A CACHÉ LOCAL (OFFLINE REAL)
     const cachedLocal = await dbGet(DATA_KEY);
-    if (cachedLocal) {
+    if (cachedLocal && cachedLocal.users && cachedLocal.users.length > 0) {
         console.log("📂 Usando datos en caché local (Offline).");
         return sanitizeAppData(cachedLocal);
     }
 
-    // 3. ESTADO CERO (Sin datos ni conexión)
-    // NO usamos datos demo. Generamos un admin de rescate para poder entrar y configurar.
-    console.warn("⚠️ SISTEMA VACÍO. Generando acceso de emergencia.");
-    const emergencyAdmin = {
-        id: 'admin-emergencia',
-        nombre: 'admin',
-        clave: 'admin', // Clave por defecto para configuración inicial
-        zona: 'SISTEMA',
-        grupo: 'Administración',
-        departamento: 'Supervisor',
-        rol: 'admin',
-        verPVP: true
-    };
+    // 3. ESTADO DEMO (Sin conexión y Sin caché)
+    // En lugar de "Sistema Vacío", cargamos los datos de prueba importados.
+    console.log("⚠️ Usando DATOS DEMO (Modo Presentación).");
 
-    const initial = sanitizeAppData({
-        users: [emergencyAdmin],
-        pos: [],
-        articulos: [],
-        tarifas: [],
-        groups: [],
-        companyName: "Sistema Sin Datos (Requiere Carga)"
+    const demoData = sanitizeAppData({
+        users: usuariosRawData.users,
+        pos: usuariosRawData.pos,
+        groups: usuariosRawData.groups,
+        articulos: articulosRawData,
+        tarifas: tarifasRawData,
+        companyName: "Paraíso de la Carne (DEMO)",
+        lastUpdated: "Datos de Demostración"
     });
     
-    return initial;
+    // Guardamos la demo en caché para que la próxima carga sea más rápida
+    await dbPut(DATA_KEY, demoData);
+    
+    return demoData;
 }
 
 export function getAppData(): Promise<AppData> {
@@ -197,8 +194,11 @@ export async function saveAllData(updates: Partial<AppData>): Promise<void> {
             console.log("✅ Datos sincronizados.");
         } catch (e) {
             console.error("❌ Error guardando en Firebase:", e);
-            alert("Error de conexión al guardar en la nube. Los datos se han guardado localmente.");
+            // No mostramos alerta si sabemos que no hay configuración
+            // alert("Error de conexión al guardar en la nube. Los datos se han guardado localmente.");
         }
+    } else {
+        console.log("💾 Guardado local (Modo Demo/Offline).");
     }
 }
 

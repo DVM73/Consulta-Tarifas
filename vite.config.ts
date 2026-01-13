@@ -7,15 +7,26 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Función auxiliar para buscar variables con diferentes prefijos comunes
+// Esto asegura compatibilidad con configuraciones antiguas de Vercel
+const findEnv = (env: Record<string, string>, key: string) => {
+  return JSON.stringify(
+    env[key] || 
+    env[`VITE_${key}`] || 
+    env[`REACT_APP_${key}`] || 
+    process.env[key] || 
+    ''
+  );
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Carga las variables de entorno para que estén disponibles.
-  // En Vercel, process.env ya tiene las variables, pero loadEnv asegura consistencia local.
+  // Carga todas las variables de entorno disponibles
   const env = loadEnv(mode, path.resolve(), '');
 
   return {
     plugins: [react()],
-    base: './', // Asegura rutas relativas correctas
+    base: './', 
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './'),
@@ -37,14 +48,14 @@ export default defineConfig(({ mode }) => {
       }
     },
     define: {
-      // Usamos || '' para asegurar que nunca sea undefined en el código compilado
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
-      'process.env.FIREBASE_API_KEY': JSON.stringify(env.FIREBASE_API_KEY || ''),
-      'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.FIREBASE_AUTH_DOMAIN || ''),
-      'process.env.FIREBASE_PROJECT_ID': JSON.stringify(env.FIREBASE_PROJECT_ID || ''),
-      'process.env.FIREBASE_STORAGE_BUCKET': JSON.stringify(env.FIREBASE_STORAGE_BUCKET || ''),
-      'process.env.FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(env.FIREBASE_MESSAGING_SENDER_ID || ''),
-      'process.env.FIREBASE_APP_ID': JSON.stringify(env.FIREBASE_APP_ID || '')
+      // Mapeo robusto: Busca la clave pura, con prefijo VITE_ o con prefijo REACT_APP_
+      'process.env.API_KEY': findEnv(env, 'API_KEY'),
+      'process.env.FIREBASE_API_KEY': findEnv(env, 'FIREBASE_API_KEY'),
+      'process.env.FIREBASE_AUTH_DOMAIN': findEnv(env, 'FIREBASE_AUTH_DOMAIN'),
+      'process.env.FIREBASE_PROJECT_ID': findEnv(env, 'FIREBASE_PROJECT_ID'),
+      'process.env.FIREBASE_STORAGE_BUCKET': findEnv(env, 'FIREBASE_STORAGE_BUCKET'),
+      'process.env.FIREBASE_MESSAGING_SENDER_ID': findEnv(env, 'FIREBASE_MESSAGING_SENDER_ID'),
+      'process.env.FIREBASE_APP_ID': findEnv(env, 'FIREBASE_APP_ID')
     }
   };
 });
