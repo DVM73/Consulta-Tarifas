@@ -4,33 +4,49 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
 
-console.log("🚀 Iniciando App v2.0.3...");
+console.log("🚀 Iniciando App v2.0.4 (Modo Híbrido)...");
 
 const isProduction = window.location.hostname !== 'localhost' && 
                      !window.location.hostname.includes('ai.studio') && 
                      !window.location.hostname.includes('googleusercontent.com') &&
                      !window.location.hostname.includes('webcontainer.io');
 
-// GESTIÓN DE SERVICE WORKER (CACHÉ)
-if ('serviceWorker' in navigator) {
-  if (isProduction) {
-    // Solo registrar en producción real (dominio final)
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(reg => console.log('✅ Service Worker registrado (Prod):', reg.scope))
-        .catch(err => console.warn('⚠️ Fallo al registrar SW:', err));
-    });
-  } else {
-    // EN PREVIEW/DEV: DESREGISTRAR ACTIVAMENTE PARA EVITAR CACHÉ OBSOLETA
-    console.log("🧹 Entorno de Desarrollo/Preview detectado: Eliminando Service Workers...");
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-      for(let registration of registrations) {
-        registration.unregister();
-        console.log("🗑️ Service Worker eliminado para asegurar recarga limpia.");
-      }
-    });
-  }
-}
+// GESTIÓN AVANZADA DE SERVICE WORKER Y CACHÉ
+const handleServiceWorker = async () => {
+    if (!('serviceWorker' in navigator)) return;
+
+    if (isProduction) {
+        // En producción real (Vercel), comportamiento normal
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/service-worker.js')
+                .then(reg => console.log('✅ SW Registrado (Prod):', reg.scope))
+                .catch(err => console.warn('⚠️ Error SW:', err));
+        });
+    } else {
+        // EN PREVIEW/DEV: LIMPIEZA NUCLEAR
+        console.warn("🧹 MODO PREVIEW DETECTADO: Limpiando cachés...");
+        
+        // 1. Desregistrar Service Workers existentes
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for(let registration of registrations) {
+            await registration.unregister();
+            console.log("🗑️ Service Worker desvinculado.");
+        }
+
+        // 2. Borrar Caché de Almacenamiento (Cache Storage)
+        if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => {
+                console.log("🔥 Borrando caché:", name);
+                return caches.delete(name);
+            }));
+        }
+        
+        console.log("✨ Entorno limpio. La app debería cargar fresca.");
+    }
+};
+
+handleServiceWorker();
 
 const container = document.getElementById('root');
 

@@ -14,7 +14,7 @@ import { articulosRawData } from '../data/articulos';
 import { tarifasRawData } from '../data/tarifas';
 
 const DATA_KEY = 'appData';
-const DB_NAME = 'ConsultaTarifasDB_v9'; 
+const DB_NAME = 'ConsultaTarifasDB_v10'; // BUMP VERSION DB
 const STORE_NAME = 'appDataStore';
 
 let appDataPromise: Promise<AppData> | null = null;
@@ -88,24 +88,22 @@ const sanitizeAppData = (data: any): AppData => {
 // --- MAIN LOAD FUNCTION ---
 
 async function loadAndInitializeData(): Promise<AppData> {
-    // 1. CARGA DIRECTA DE FIREBASE (Prioridad Absoluta)
+    // 1. CARGA DIRECTA DE FIREBASE (Prioridad Absoluta - Modo Producción)
     if (db) {
         try {
-            console.log("🌐 Conectando directamente a Firebase (Modo Producción)...");
+            console.log("🌐 Conectando a Firebase...");
             
-            // Intentar leer las colecciones individuales primero (Estructura "Real")
             const [usersSnap, posSnap, artSnap, tarSnap, groupSnap, mainDocSnap] = await Promise.all([
                 getDocs(collection(db, "users")),
                 getDocs(collection(db, "pos")),
                 getDocs(collection(db, "articulos")),
                 getDocs(collection(db, "tarifas")),
                 getDocs(collection(db, "groups")),
-                getDoc(doc(db, "appData", "main")) // Configuración global
+                getDoc(doc(db, "appData", "main")) 
             ]);
 
-            // Si hay datos en colecciones, usarlos
             if (!usersSnap.empty || !artSnap.empty || !posSnap.empty) {
-                console.log(`✅ Datos obtenidos de Firebase: ${artSnap.size} artículos, ${tarSnap.size} tarifas.`);
+                console.log(`✅ Datos nube: ${artSnap.size} arts, ${tarSnap.size} tarifas.`);
                 
                 const cloudData: any = {
                     users: usersSnap.docs.map(d => ({ id: d.id, ...d.data() })),
@@ -113,41 +111,37 @@ async function loadAndInitializeData(): Promise<AppData> {
                     articulos: artSnap.docs.map(d => d.data()),
                     tarifas: tarSnap.docs.map(d => d.data()),
                     groups: groupSnap.docs.map(d => ({ id: d.id, ...d.data() })),
-                    // Si existe el documento principal para metadatos, úsalo, si no, fecha actual
                     ...(mainDocSnap.exists() ? mainDocSnap.data() : {}),
                     lastUpdated: new Date().toLocaleString()
                 };
 
                 const sanitized = sanitizeAppData(cloudData);
-                await dbPut(DATA_KEY, sanitized); // Refrescar caché local
+                await dbPut(DATA_KEY, sanitized);
                 return sanitized;
             }
 
-            // Si colecciones están vacías, intentar documento "main" monolítico (Legacy)
             if (mainDocSnap.exists()) {
-                console.log("⚠️ Usando documento 'main' monolítico (Legacy).");
                 const mainData = sanitizeAppData(mainDocSnap.data());
                 await dbPut(DATA_KEY, mainData);
                 return mainData;
             }
 
         } catch (e) {
-            console.error("❌ Error de red conectando a Firebase. Intentando modo local.", e);
+            console.error("❌ Error red Firebase. Pasando a local.", e);
         }
     } else {
-        console.warn("🟡 Firebase no configurado. Iniciando Modo Local/Offline.");
+        console.warn("🟡 MODO LOCAL: Firebase no configurado.");
     }
 
-    // 2. FALLBACK A CACHÉ LOCAL (OFFLINE REAL)
+    // 2. FALLBACK A CACHÉ LOCAL (Modo Offline o Recarga en Preview)
     const cachedLocal = await dbGet(DATA_KEY);
     if (cachedLocal && cachedLocal.users && cachedLocal.users.length > 0) {
-        console.log("📂 Usando datos en caché local (Offline/Local).");
+        console.log("📂 Usando datos locales persistentes.");
         return sanitizeAppData(cachedLocal);
     }
 
-    // 3. ESTADO DEMO (Sin conexión y Sin caché)
-    // En lugar de "Sistema Vacío", cargamos los datos de prueba importados.
-    console.log("🚀 Inicializando con Datos Demo.");
+    // 3. DATOS DE DEMO INICIALES (Primera carga en Preview)
+    console.log("🚀 Inicializando BD Local con Datos Demo.");
 
     const demoData = sanitizeAppData({
         users: usuariosRawData.users,
@@ -155,11 +149,10 @@ async function loadAndInitializeData(): Promise<AppData> {
         groups: usuariosRawData.groups,
         articulos: articulosRawData,
         tarifas: tarifasRawData,
-        companyName: "Paraíso de la Carne (DEMO LOCAL)",
-        lastUpdated: "Datos de Demostración"
+        companyName: "Paraíso de la Carne (DEMO LOCAL / PREVIEW)",
+        lastUpdated: "Modo Local Inicial"
     });
     
-    // Guardamos la demo en caché para que la próxima carga sea más rápida
     await dbPut(DATA_KEY, demoData);
     
     return demoData;
@@ -175,25 +168,22 @@ export async function saveAllData(updates: Partial<AppData>): Promise<void> {
     const now = Date.now();
     const updated = sanitizeAppData({ ...current, ...updates, lastUpdated: new Date().toLocaleString() });
     
-    // 1. Guardar en Caché Local (Siempre funciona)
+    // 1. Guardar LOCAL (IndexedDB) - Esto permite trabajar en la Preview
     await dbPut(DATA_KEY, updated);
     appDataPromise = Promise.resolve(updated);
-    console.log("💾 Guardado local exitoso.");
+    console.log("💾 Datos guardados en navegador (Modo Local).");
 
-    // 2. Guardar en Firebase (Solo si hay conexión y configuración)
+    // 2. Guardar NUBE (Firebase) - Solo si hay conexión real
     if (db) {
         try {
-            console.log("☁️ Sincronizando con nube...");
-            
-            // Guardamos siempre en el documento principal por seguridad/backup rápido
+            console.log("☁️ Subiendo a la nube...");
             await setDoc(doc(db, "appData", "main"), { 
                 ...updated, 
                 serverTimestamp: FirestoreTimestamp.fromMillis(now) 
             });
-            
-            console.log("✅ Datos sincronizados con la nube.");
+            console.log("✅ Sincronizado con nube.");
         } catch (e) {
-            console.warn("⚠️ No se pudo sincronizar con la nube (¿Modo Offline?). Los datos están seguros localmente.", e);
+            console.warn("⚠️ Sin conexión a nube. Los datos solo están en este dispositivo.", e);
         }
     }
 }
@@ -204,7 +194,7 @@ export async function overwriteAllData(newData: AppData): Promise<void> {
     
     await dbPut(DATA_KEY, updated);
     appDataPromise = Promise.resolve(updated);
-    console.log("🔄 Base de datos sobrescrita localmente.");
+    console.log("🔄 Restauración completa en modo local.");
     
     if (db) {
         try {
@@ -213,7 +203,7 @@ export async function overwriteAllData(newData: AppData): Promise<void> {
                 serverTimestamp: FirestoreTimestamp.fromMillis(now) 
             });
         } catch (e) {
-            console.warn("⚠️ Error sobrescribiendo en nube:", e);
+            console.warn("⚠️ Error restaurando en nube:", e);
         }
     }
 }
