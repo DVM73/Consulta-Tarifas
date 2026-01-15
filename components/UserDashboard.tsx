@@ -30,7 +30,6 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const [articulos, setArticulos] = useState<Articulo[]>([]);
     const [posList, setPosList] = useState<PointOfSale[]>([]);
     const [loading, setLoading] = useState(true);
-    const [lastUpdated, setLastUpdated] = useState('');
     
     const [searchTerm, setSearchTerm] = useState('');
     const [seccionFilter, setSeccionFilter] = useState('Todas');
@@ -53,13 +52,37 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             setTarifas(data.tarifas || []);
             setArticulos(data.articulos || []);
             setPosList(data.pos || []);
-            setLastUpdated(data.lastUpdated || '');
             setLoading(false);
         }).catch(err => {
             console.error("Error al cargar los datos del panel de usuario:", err);
             setLoading(false);
         });
     }, []);
+
+    // OPTIMIZACIÓN: Crear un mapa indexado de tarifas por referencia de artículo
+    // Esto evita recorrer el array de 5000 tarifas por cada artículo, reduciendo la latencia drásticamente.
+    const tariffsByArticle = useMemo(() => {
+        const map = new Map<string, Tarifa[]>();
+        tarifas.forEach(t => {
+            const ref = String(t['Cód. Art.']).trim();
+            if (!map.has(ref)) map.set(ref, []);
+            map.get(ref)!.push(t);
+        });
+        return map;
+    }, [tarifas]);
+
+    // Función auxiliar rápida para obtener tarifa
+    const getTariffForZone = (ref: string, zona: string): Tarifa | undefined => {
+        const articleTariffs = tariffsByArticle.get(ref);
+        if (!articleTariffs) return undefined;
+        
+        if (zona === 'Todas') {
+            // Si es 'Todas', devolvemos la primera que encontremos (comportamiento legacy)
+            // O idealmente, no mostraríamos nada específico, pero mantenemos lógica anterior
+            return articleTariffs[0];
+        }
+        return articleTariffs.find(t => t.Tienda === zona);
+    };
 
     const filteredData = useMemo(() => {
         return articulos.filter(art => {
@@ -70,18 +93,26 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             const matchesSeccion = seccionFilter === 'Todas' || seccionStr === seccionFilter;
             if (!matchesSeccion) return false;
             
+            const ref = String(art.Referencia).trim();
+            const articleTariffs = tariffsByArticle.get(ref) || [];
+
             if (showOffers) {
-                const hasOffer = tarifas.some(t => String(t['Cód. Art.']).trim() === art.Referencia && t['PVP Oferta'] && t['PVP Oferta'] !== '' && (isComparing ? selectedCompareZones.includes(t.Tienda) : (zonaFilter === 'Todas' || t.Tienda === zonaFilter)));
+                // Optimizado: buscar solo en las tarifas de este artículo
+                const hasOffer = articleTariffs.some(t => 
+                    t['PVP Oferta'] && t['PVP Oferta'] !== '' && 
+                    (isComparing ? selectedCompareZones.includes(t.Tienda) : (zonaFilter === 'Todas' || t.Tienda === zonaFilter))
+                );
                 if (!hasOffer) return false;
             }
 
             if (showNoPrice) {
-                const hasAnyPrice = tarifas.some(t => String(t['Cód. Art.']).trim() === art.Referencia && t['P.V.P.'] !== '');
+                // Optimizado
+                const hasAnyPrice = articleTariffs.some(t => t['P.V.P.'] !== '');
                 if (hasAnyPrice) return false;
             }
             return true;
         });
-    }, [articulos, tarifas, searchTerm, zonaFilter, showOffers, showNoPrice, seccionFilter, isComparing, selectedCompareZones]);
+    }, [articulos, tariffsByArticle, searchTerm, zonaFilter, showOffers, showNoPrice, seccionFilter, isComparing, selectedCompareZones]);
 
     const handleNoteChange = (ref: string, val: string) => setNotes(prev => ({ ...prev, [ref]: val }));
 
@@ -95,11 +126,11 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             let row = `${art.Referencia};${art.Descripción};${art['Ult. Costo']};${notes[art.Referencia] || ''}`;
             if (isComparing) {
                 selectedCompareZones.forEach(z => {
-                    const t = tarifas.find(t => String(t['Cód. Art.']).trim() === art.Referencia && t.Tienda === z);
+                    const t = getTariffForZone(art.Referencia, z);
                     row += `;${t?.['P.V.P.'] || '-'}`;
                 });
             } else {
-                const t = tarifas.find(t => String(t['Cód. Art.']).trim() === art.Referencia && (zonaFilter === 'Todas' || t.Tienda === zonaFilter));
+                const t = getTariffForZone(art.Referencia, zonaFilter);
                 row += `;${t?.['P.V.P.'] || '-'}`;
             }
             return row;
@@ -129,11 +160,9 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         };
 
         try {
-            // 1. Guardar en Base de Datos (Firebase)
             const currentData = await getAppData();
             await saveAllData({ reports: [newReport, ...(currentData.reports || [])] });
 
-            // 2. Enviar Correo vía EmailJS
             const serviceID = 'service_egg3xws';
             const templateID = 'template_aogq9fr';
             const publicKey = 's0Y3v_8CMdSiSPqVz';
@@ -151,7 +180,6 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
 
         } catch (error) {
             console.error("❌ Error en el proceso de envío:", error);
-            // Aunque falle el correo, el listado se guardó en BD, así que avisamos con matiz
             alert("⚠️ Listado guardado en la App, pero falló el envío del correo de aviso.");
         } finally {
             setIsSending(false);
@@ -164,7 +192,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     return (
         <div className="flex flex-col h-screen bg-[#f3f4f6] dark:bg-slate-950">
             {/* Header, filters, etc. */}
-            <header className="bg-white dark:bg-slate-900 p-4 border-b dark:border-slate-800 flex items-center gap-4">
+            <header className="bg-white dark:bg-slate-900 p-4 border-b dark:border-slate-800 flex items-center gap-4 shadow-sm z-10">
                  {onBack && <button onClick={onBack}><ArrowLeftIcon className="w-5 h-5" /></button>}
                 <div className="relative flex-grow"><input type="text" placeholder="Buscar por descripción o referencia..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 bg-gray-50 dark:bg-slate-800 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-brand-500" /><SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /></div>
                 <select value={seccionFilter} onChange={e => setSeccionFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"><option>Todas</option><option>Carnicería</option><option>Charcutería</option></select>
@@ -180,42 +208,87 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                 </div>
             </header>
 
-            {isComparing && <div className="bg-white dark:bg-slate-800 p-2 flex flex-wrap gap-2 border-b dark:border-slate-700"><label className="flex items-center gap-2 text-sm px-2"><input type="checkbox" onChange={toggleAllZones} className="rounded text-brand-600"/> Todas las Zonas</label>{posList.map(p=><label key={p.id} className="flex items-center gap-2 text-sm px-2"><input type="checkbox" checked={selectedCompareZones.includes(p.zona)} onChange={()=>toggleZone(p.zona)} className="rounded text-brand-600"/>{p.zona}</label>)}</div>}
+            {isComparing && <div className="bg-white dark:bg-slate-800 p-2 flex flex-wrap gap-2 border-b dark:border-slate-700 shadow-sm z-10"><label className="flex items-center gap-2 text-sm px-2"><input type="checkbox" onChange={toggleAllZones} className="rounded text-brand-600"/> Todas las Zonas</label>{posList.map(p=><label key={p.id} className="flex items-center gap-2 text-sm px-2"><input type="checkbox" checked={selectedCompareZones.includes(p.zona)} onChange={()=>toggleZone(p.zona)} className="rounded text-brand-600"/>{p.zona}</label>)}</div>}
 
             <main className="flex-1 overflow-auto p-4 custom-scrollbar">
-                <table className="w-full text-left text-sm">
-                    <thead className="sticky top-0 bg-[#f3f4f6] dark:bg-slate-950">
-                        <tr className="border-b dark:border-slate-700">
-                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Cód.</th>
-                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Descripción</th>
-                            {user?.rol !== 'Normal' && <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Coste</th>}
+                <table className="w-full text-left text-sm border-separate border-spacing-0">
+                    <thead className="sticky top-0 bg-[#f3f4f6] dark:bg-slate-950 z-10 shadow-sm">
+                        <tr>
+                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Cód.</th>
+                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Descripción</th>
+                            {user?.rol !== 'Normal' && <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Coste</th>}
                             {!isComparing ? <>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">PVP</th>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Oferta</th>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Inicio</th>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px]">Fin</th>
-                            </> : selectedCompareZones.map(z=><th key={z} className="p-3 font-bold text-slate-500 uppercase text-[10px] text-center">{z}</th>)}
-                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px] w-1/4">Nota de Supervisor</th>
+                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">PVP</th>
+                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Oferta</th>
+                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Inicio</th>
+                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Fin</th>
+                            </> : selectedCompareZones.map(z=><th key={z} className="p-3 font-bold text-slate-500 uppercase text-[10px] text-center tracking-wider">{z}</th>)}
+                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px] w-1/4 tracking-wider">Nota de Supervisor</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y dark:divide-slate-800">{filteredData.map(art => {
-                        const t = tarifas.find(t=>String(t['Cód. Art.']).trim()===art.Referencia && (zonaFilter==='Todas'||t.Tienda===zonaFilter));
-                        return (<tr key={art.Referencia} className="hover:bg-white dark:hover:bg-slate-900 transition-colors">
-                            <td className="p-3 font-mono text-xs">{art.Referencia.replace(/\D/g,'')}</td>
-                            <td className="p-3 font-bold">{art.Descripción}</td>
-                            {user?.rol !== 'Normal' && <td className="p-3">{formatCurrency(art['Ult. Costo'])}</td>}
-                            {!isComparing ? <>
-                                <td className="p-3 font-bold">{formatCurrency(t?.['P.V.P.'])}</td>
-                                <td className="p-3 font-bold text-green-600">{t?.['PVP Oferta'] ? formatCurrency(t['PVP Oferta']) : '-'}</td>
-                                <td className="p-3 text-xs">{t?.['Fec.Ini.Ofe.']||'-'}</td>
-                                <td className="p-3 text-xs">{t?.['Fec.Fin.Ofe.']||'-'}</td>
-                            </> : selectedCompareZones.map(z => {
-                                const tz = tarifas.find(t => String(t['Cód. Art.']).trim()===art.Referencia && t.Tienda === z);
-                                return <td key={z} className="p-3 text-center font-bold">{formatCurrency(tz?.['P.V.P.'])}</td>
-                            })}
-                            <td className="p-2"><input type="text" value={notes[art.Referencia]||''} onChange={e=>handleNoteChange(art.Referencia, e.target.value)} className="w-full bg-transparent p-1 rounded focus:bg-white dark:focus:bg-slate-800 outline-none focus:ring-1 focus:ring-brand-500"/></td>
-                        </tr>);
-                    })}</tbody>
+                    <tbody className="bg-white dark:bg-slate-900 divide-y dark:divide-slate-800">
+                        {filteredData.map(art => {
+                            // Usamos el helper optimizado en lugar de .find sobre todo el array
+                            const t = getTariffForZone(art.Referencia, zonaFilter);
+                            const hasOffer = t && t['PVP Oferta'] && t['PVP Oferta'] !== '';
+                            
+                            return (
+                                <tr key={art.Referencia} className={`transition-colors ${hasOffer ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/40' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
+                                    <td className="p-3 font-mono text-xs text-slate-500">{art.Referencia.replace(/\D/g,'')}</td>
+                                    <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{art.Descripción}</td>
+                                    {user?.rol !== 'Normal' && <td className="p-3 text-slate-600 dark:text-slate-400 font-medium">{formatCurrency(art['Ult. Costo'])}</td>}
+                                    
+                                    {!isComparing ? <>
+                                        <td className="p-3">
+                                            {/* Lógica PVP Tachado si hay oferta */}
+                                            {hasOffer ? (
+                                                <span className="line-through text-red-500 font-bold decoration-2 opacity-70 text-xs">
+                                                    {formatCurrency(t?.['P.V.P.'])}
+                                                </span>
+                                            ) : (
+                                                <span className="font-bold text-slate-800 dark:text-slate-200">
+                                                    {formatCurrency(t?.['P.V.P.'])}
+                                                </span>
+                                            )}
+                                        </td>
+                                        <td className="p-3">
+                                            {hasOffer ? (
+                                                <span className="font-extrabold text-green-700 dark:text-green-400 text-base bg-green-200/50 px-2 py-0.5 rounded-md border border-green-200 dark:border-green-800">
+                                                    {formatCurrency(t!['PVP Oferta'])}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
+                                        </td>
+                                        <td className="p-3 text-xs font-medium text-slate-600">{t?.['Fec.Ini.Ofe.']||'-'}</td>
+                                        <td className="p-3 text-xs font-medium text-slate-600">{t?.['Fec.Fin.Ofe.']||'-'}</td>
+                                    </> : selectedCompareZones.map(z => {
+                                        const tz = getTariffForZone(art.Referencia, z);
+                                        const isOffer = tz && tz['PVP Oferta'] && tz['PVP Oferta'] !== '';
+                                        return (
+                                            <td key={z} className={`p-3 text-center border-l dark:border-slate-800 ${isOffer ? 'bg-green-50 dark:bg-green-900/20' : ''}`}>
+                                                <div className="flex flex-col items-center">
+                                                    {isOffer && <span className="text-[10px] text-red-500 line-through mb-0.5">{formatCurrency(tz?.['P.V.P.'])}</span>}
+                                                    <span className={`font-bold ${isOffer ? 'text-green-700 dark:text-green-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                        {formatCurrency(isOffer ? tz!['PVP Oferta'] : tz?.['P.V.P.'])}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        );
+                                    })}
+                                    <td className="p-2">
+                                        <input 
+                                            type="text" 
+                                            value={notes[art.Referencia]||''} 
+                                            onChange={e=>handleNoteChange(art.Referencia, e.target.value)} 
+                                            className="w-full bg-white/50 dark:bg-black/20 p-2 rounded-lg border border-transparent focus:border-brand-300 focus:bg-white dark:focus:bg-slate-800 outline-none text-xs transition-all placeholder:text-slate-400"
+                                            placeholder="Añadir nota..."
+                                        />
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
                 </table>
             </main>
 
