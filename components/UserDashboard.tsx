@@ -13,7 +13,7 @@ import UploadIcon from './icons/UploadIcon';
 import MailIcon from './icons/MailIcon';
 import CloseIcon from './icons/CloseIcon';
 import ArrowDownIcon from './icons/ArrowDownIcon';
-import { Tarifa, Articulo, PointOfSale, Report } from '../types';
+import { Tarifa, Articulo, PointOfSale, Report, Family } from '../types';
 import { getAppData, saveAllData } from '../services/dataService';
 import emailjs from '@emailjs/browser';
 
@@ -46,7 +46,7 @@ const NoteInput = memo(({
         }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
             e.currentTarget.blur(); // Dispara onBlur
         }
@@ -70,10 +70,12 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const [tarifas, setTarifas] = useState<Tarifa[]>([]);
     const [articulos, setArticulos] = useState<Articulo[]>([]);
     const [posList, setPosList] = useState<PointOfSale[]>([]);
+    const [families, setFamilies] = useState<Family[]>([]);
     const [loading, setLoading] = useState(true);
     
     const [searchTerm, setSearchTerm] = useState('');
     const [seccionFilter, setSeccionFilter] = useState('Todas');
+    const [familiaFilter, setFamiliaFilter] = useState('Todas');
     const [zonaFilter, setZonaFilter] = useState<string>(user?.zona || 'Todas');
     const [showOffers, setShowOffers] = useState(false);
     const [showNoPrice, setShowNoPrice] = useState(false);
@@ -93,6 +95,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             setTarifas(data.tarifas || []);
             setArticulos(data.articulos || []);
             setPosList(data.pos || []);
+            setFamilies(data.families || []);
             setLoading(false);
         }).catch(err => {
             console.error("Error al cargar los datos del panel de usuario:", err);
@@ -128,6 +131,18 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             let seccionStr = art.Sección === '1' ? 'Carnicería' : (art.Sección === '2' ? 'Charcutería' : art.Sección);
             const matchesSeccion = seccionFilter === 'Todas' || seccionStr === seccionFilter;
             if (!matchesSeccion) return false;
+
+            // Filtro por Familia
+            // art.Familia contiene el código (ej: "5"). familiaFilter contiene el código (ej: "05" o "5")
+            // Convertimos a entero para comparar seguro, o string trim
+            if (familiaFilter !== 'Todas') {
+                 // Convertimos a número para asegurar que "05" == "5"
+                 const artFam = parseInt(art.Familia);
+                 const filterFam = parseInt(familiaFilter);
+                 if (isNaN(artFam) || isNaN(filterFam) || artFam !== filterFam) {
+                     return false;
+                 }
+            }
             
             const ref = String(art.Referencia).trim();
             const articleTariffs = tariffsByArticle.get(ref) || [];
@@ -146,7 +161,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             }
             return true;
         });
-    }, [articulos, tariffsByArticle, searchTerm, zonaFilter, showOffers, showNoPrice, seccionFilter, isComparing, selectedCompareZones]);
+    }, [articulos, tariffsByArticle, searchTerm, zonaFilter, showOffers, showNoPrice, seccionFilter, familiaFilter, isComparing, selectedCompareZones]);
 
     // Optimización: Callback estable para guardar notas
     const handleSaveNote = (ref: string, val: string) => {
@@ -249,8 +264,21 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             <header className="bg-white dark:bg-slate-900 p-4 border-b dark:border-slate-800 flex items-center gap-4 shadow-sm z-10">
                  {onBack && <button onClick={onBack}><ArrowLeftIcon className="w-5 h-5" /></button>}
                 <div className="relative flex-grow"><input type="text" placeholder="Buscar por descripción o referencia..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 bg-gray-50 dark:bg-slate-800 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-brand-500" /><SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /></div>
-                <select value={seccionFilter} onChange={e => setSeccionFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500"><option>Todas</option><option>Carnicería</option><option>Charcutería</option></select>
-                <select value={zonaFilter} disabled={isComparing} onChange={e => setZonaFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50"><option>Todas</option>{posList.map(p=><option key={p.id}>{p.zona}</option>)}</select>
+                
+                <select value={seccionFilter} onChange={e => setSeccionFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-medium">
+                    <option>Todas</option>
+                    <option>Carnicería</option>
+                    <option>Charcutería</option>
+                </select>
+
+                <select value={familiaFilter} onChange={e => setFamiliaFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-medium max-w-[150px]">
+                    <option value="Todas">Todas las Familias</option>
+                    {families.map(f => (
+                        <option key={f.id} value={f.id}>{f.nombre}</option>
+                    ))}
+                </select>
+
+                <select value={zonaFilter} disabled={isComparing} onChange={e => setZonaFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50 font-medium"><option>Todas</option>{posList.map(p=><option key={p.id}>{p.zona}</option>)}</select>
                 <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={showOffers} onChange={e => setShowOffers(e.target.checked)} className="rounded text-brand-600"/> Ofertas</label>
                 <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={showNoPrice} onChange={e => setShowNoPrice(e.target.checked)} className="rounded text-brand-600"/> Sin Precio</label>
                 <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={isComparing} onChange={e => setIsComparing(e.target.checked)} className="rounded text-brand-600"/> Comparar</label>

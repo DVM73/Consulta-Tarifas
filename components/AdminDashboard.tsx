@@ -14,8 +14,9 @@ import MailIcon from './icons/MailIcon';
 import HistoryIcon from './icons/HistoryIcon';
 import ChatIcon from './icons/ChatIcon';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
-import FlagIcon from './icons/FlagIcon'; // Importamos la bandera
-import { UsersList, POSList, GroupsList, DataUploadView, DataExportView, ReportsInboxView, BackupView, SettingsView } from './AdminViews';
+import FlagIcon from './icons/FlagIcon';
+import TagIcon from './icons/TagIcon';
+import { UsersList, POSList, GroupsList, DataUploadView, DataExportView, ReportsInboxView, BackupView, SettingsView, FamiliesList } from './AdminViews';
 
 const AdminDashboard: React.FC = () => {
     const { logout, user } = useContext(AppContext);
@@ -48,6 +49,7 @@ const AdminDashboard: React.FC = () => {
             case 'users': return <UsersList users={data.users || []} onUpdate={handleUpdateData} />;
             case 'pos': return <POSList pos={data.pos || []} onUpdate={handleUpdateData} />;
             case 'groups': return <GroupsList groups={data.groups || []} onUpdate={handleUpdateData} />;
+            case 'families': return <FamiliesList families={data.families || []} onUpdate={handleUpdateData} />;
             case 'upload': return <DataUploadView />;
             case 'export': return <DataExportView />;
             case 'reports': return <ReportsInboxView reports={data.reports || []} onUpdate={handleUpdateData} onRefresh={refreshData} />;
@@ -72,6 +74,7 @@ const AdminDashboard: React.FC = () => {
         { id: 'users', label: 'Administración de usuarios', desc: 'Crear, modificar y eliminar usuarios.', icon: UserIcon },
         { id: 'pos', label: 'Administración de P. Venta', desc: 'Gestionar los puntos de venta.', icon: HistoryIcon },
         { id: 'groups', label: 'Administración de Grupos', desc: 'Gestionar los grupos de tiendas.', icon: BuildingIcon },
+        { id: 'families', label: 'Administración de Familias', desc: 'Gestionar códigos y nombres de familias.', icon: TagIcon },
         { id: 'upload', label: 'Carga de datos', desc: 'Subir archivos CSV de artículos y tarifas.', icon: UploadIcon },
         { id: 'export', label: 'Exportación de datos', desc: 'Exportar todos los datos a JSON.', icon: ExportIcon },
         { id: 'reports', label: 'Buzón de Reportes', desc: 'Ver informes enviados por supervisores.', icon: MailIcon },

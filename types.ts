@@ -26,6 +26,7 @@ export type AdminView =
   | 'users'
   | 'pos'
   | 'groups'
+  | 'families'
   | 'upload'
   | 'export'
   | 'backup'
@@ -68,6 +69,11 @@ export interface Group {
     nombre: string;
 }
 
+export interface Family {
+    id: string; // El código (ej: "05", "29")
+    nombre: string; // La descripción (ej: "CERDO")
+}
+
 export interface Report {
     id: string;
     firestoreId?: string;
@@ -93,6 +99,7 @@ export interface AppData {
     articulos: Articulo[];
     tarifas: Tarifa[];
     groups: Group[];
+    families: Family[];
     companyName?: string;
     lastUpdated?: string;
     reports?: Report[];

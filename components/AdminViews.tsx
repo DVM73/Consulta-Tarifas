@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, PointOfSale, Group, Report, AppData, UserRole, Departamento, Backup, Articulo, Tarifa } from '../types';
+import { User, PointOfSale, Group, Report, AppData, UserRole, Departamento, Backup, Articulo, Tarifa, Family } from '../types';
 import EditIcon from './icons/EditIcon';
 import TrashIcon from './icons/TrashIcon';
 import PlusIcon from './icons/PlusIcon';
@@ -468,6 +468,116 @@ export const GroupsList: React.FC<{ groups: Group[] } & ViewProps> = ({ groups, 
                                 </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            </div>
+        </>
+    );
+};
+
+export const FamiliesList: React.FC<{ families: Family[] } & ViewProps> = ({ families, onUpdate }) => {
+    const [form, setForm] = useState({ id: '', nombre: '' });
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, id: '', name: '' });
+
+    const handleAddOrUpdate = () => {
+        if (!form.id.trim() || !form.nombre.trim()) return alert("El código y el nombre son obligatorios");
+        
+        // Validar código único solo si no estamos editando el mismo
+        if (!editingId && families.some(f => f.id === form.id)) {
+            return alert("Ya existe una familia con ese código.");
+        }
+
+        let updated = [...families];
+        if (editingId) {
+            // Al editar, NO permitimos cambiar el ID porque es la clave de enlace, pero si el usuario lo necesita, debería borrar y crear.
+            // Aquí asumiremos que está editando el NOMBRE. Si cambió el ID en el input, técnicamente está creando uno nuevo si no controlamos el ID original.
+            // Para simplificar: Update busca por ID original si lo tuviéramos, pero aquí editingId ES el id (codigo).
+            // Si editingId existe, actualizamos ese registro.
+            // PERO: Si el usuario cambia el ID en el input, debemos gestionar eso.
+            // Estrategia simple: Borrar el viejo y crear el nuevo si el ID cambió, o actualizar si es el mismo.
+            
+            // Caso simple: Actualizar nombre del ID en edición (Input ID deshabilitado al editar para evitar romper relaciones)
+            updated = families.map(f => f.id === editingId ? { ...f, nombre: form.nombre } : f);
+        } else {
+            updated.push({ id: form.id, nombre: form.nombre });
+            // Ordenar por ID numérico
+            updated.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+        }
+        
+        onUpdate({ families: updated });
+        setForm({ id: '', nombre: '' });
+        setEditingId(null);
+    };
+
+    const startEdit = (f: Family) => {
+        setEditingId(f.id);
+        setForm({ id: f.id, nombre: f.nombre });
+    };
+
+    return (
+        <>
+            <ConfirmModal 
+                isOpen={deleteConfig.isOpen} 
+                title="¿Desea eliminar la familia?" 
+                message={`La familia "${deleteConfig.name}" será borrada. Esto puede afectar a artículos que la usen.`} 
+                onConfirm={() => { onUpdate({ families: families.filter(f => f.id !== deleteConfig.id) }); setDeleteConfig({isOpen: false, id: '', name: ''}); }} 
+                onCancel={() => setDeleteConfig({isOpen: false, id: '', name: ''})} 
+            />
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 max-w-3xl mx-auto overflow-hidden animate-fade-in">
+                <div className="p-6 border-b dark:border-slate-700 bg-gray-50/50 dark:bg-slate-900/50 uppercase font-bold text-sm tracking-widest text-slate-700 dark:text-white text-center">Familias de Artículos</div>
+                <div className="p-8">
+                    <div className="flex gap-3 mb-10 bg-gray-50 dark:bg-slate-900 p-3 rounded-xl border border-gray-200 dark:border-slate-700 shadow-inner items-center">
+                        <input 
+                            type="text" 
+                            value={form.id} 
+                            onChange={e => setForm({...form, id: e.target.value})} 
+                            placeholder="Cód (ej: 05)" 
+                            className="w-24 p-3 dark:bg-slate-800 border-none outline-none font-bold text-slate-800 dark:text-white text-center disabled:opacity-50"
+                            disabled={!!editingId} 
+                        />
+                        <div className="h-8 w-px bg-gray-300 dark:bg-slate-700"></div>
+                        <input 
+                            type="text" 
+                            value={form.nombre} 
+                            onChange={e => setForm({...form, nombre: e.target.value})} 
+                            placeholder="Descripción de la familia..." 
+                            className="flex-1 p-3 dark:bg-slate-800 border-none outline-none font-bold text-slate-800 dark:text-white" 
+                        />
+                        {!editingId ? (
+                            <button onClick={handleAddOrUpdate} className="bg-brand-600 text-white p-3.5 rounded-lg shadow-lg shadow-brand-600/20 active:scale-95 transition-all"><PlusIcon className="w-6 h-6 stroke-[3]"/></button>
+                        ) : (
+                            <div className="flex gap-2">
+                                <button onClick={handleAddOrUpdate} className="bg-green-600 text-white px-5 rounded-lg font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-green-600/10 hover:bg-green-700 transition-all">Guardar</button>
+                                <button onClick={() => {setEditingId(null); setForm({id:'', nombre:''});}} className="bg-slate-500 text-white px-5 rounded-lg font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-slate-500/10 hover:bg-slate-600 transition-all">Cancelar</button>
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="border-t dark:border-slate-700 max-h-[500px] overflow-y-auto custom-scrollbar">
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-gray-50 dark:bg-slate-900 text-slate-500 font-bold uppercase text-[10px] sticky top-0 z-10 shadow-sm">
+                                <tr>
+                                    <th className="p-4 w-24 text-center">Código</th>
+                                    <th className="p-4">Descripción</th>
+                                    <th className="p-4 text-center w-32">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y dark:divide-slate-700">
+                                {families.map(f => (
+                                    <tr key={f.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-900/30 transition-colors group">
+                                        <td className="p-4 font-mono font-bold text-slate-500 text-center bg-gray-50/30 dark:bg-slate-800/30">{f.id}</td>
+                                        <td className="p-4 font-bold text-slate-700 dark:text-slate-200">{f.nombre}</td>
+                                        <td className="p-4 text-center">
+                                            <div className="flex justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <button onClick={() => startEdit(f)} className="text-brand-600 hover:scale-125 transition-all"><EditIcon className="w-5 h-5"/></button>
+                                                <button onClick={() => setDeleteConfig({ isOpen: true, id: f.id, name: f.nombre })} className="text-red-500 hover:scale-125 transition-all"><TrashIcon className="w-5 h-5"/></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

@@ -12,9 +12,10 @@ import {
 import { usuariosRawData } from '../data/usuarios';
 import { articulosRawData } from '../data/articulos';
 import { tarifasRawData } from '../data/tarifas';
+import { familiesRawData } from '../data/families';
 
 const DATA_KEY = 'appData';
-const DB_NAME = 'ConsultaTarifasDB_v10'; // BUMP VERSION DB
+const DB_NAME = 'ConsultaTarifasDB_v11'; // BUMP VERSION DB
 const STORE_NAME = 'appDataStore';
 
 let appDataPromise: Promise<AppData> | null = null;
@@ -77,6 +78,7 @@ const sanitizeAppData = (data: any): AppData => {
         articulos: data.articulos || [],
         tarifas: data.tarifas || [],
         groups: data.groups || [],
+        families: data.families || familiesRawData, // Si no existen familias, usar las raw por defecto
         companyName: s(data.companyName) || "Paraíso de la Carne Selección, S.L.U.",
         lastUpdated: s(data.lastUpdated) || new Date().toLocaleString(),
         reports: data.reports || [],
@@ -148,6 +150,7 @@ async function loadAndInitializeData(): Promise<AppData> {
         groups: usuariosRawData.groups,
         articulos: articulosRawData,
         tarifas: tarifasRawData,
+        families: familiesRawData,
         companyName: "Paraíso de la Carne (DEMO LOCAL / PREVIEW)",
         lastUpdated: "Modo Local Inicial"
     });
