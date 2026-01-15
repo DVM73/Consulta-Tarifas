@@ -14,6 +14,7 @@ import MailIcon from './icons/MailIcon';
 import HistoryIcon from './icons/HistoryIcon';
 import ChatIcon from './icons/ChatIcon';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
+import FlagIcon from './icons/FlagIcon'; // Importamos la bandera
 import { UsersList, POSList, GroupsList, DataUploadView, DataExportView, ReportsInboxView, BackupView, SettingsView } from './AdminViews';
 
 const AdminDashboard: React.FC = () => {
@@ -79,6 +80,9 @@ const AdminDashboard: React.FC = () => {
         { id: 'settings', label: 'Configuración General', desc: 'Personalizar nombre de empresa y correo.', icon: SettingsIcon },
     ];
 
+    // Contar reportes sin leer
+    const unreadReports = data?.reports?.filter(r => !r.read).length || 0;
+
     return (
         <div className="h-screen flex flex-col bg-[#f3f4f6] dark:bg-slate-950 font-sans overflow-hidden">
             <header className="bg-white dark:bg-slate-900 h-14 px-6 flex justify-between items-center border-b dark:border-slate-800 z-20">
@@ -107,8 +111,20 @@ const AdminDashboard: React.FC = () => {
                                 <button
                                     key={item.id}
                                     onClick={() => setView(item.id as AdminView)}
-                                    className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col items-center text-center group hover:shadow-md transition-all"
+                                    className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm border border-gray-100 dark:border-slate-800 flex flex-col items-center text-center group hover:shadow-md transition-all relative"
                                 >
+                                    {/* NOTIFICACIÓN CON BANDERA ROJA */}
+                                    {item.id === 'reports' && unreadReports > 0 && (
+                                        <div className="absolute top-4 right-4 animate-pulse">
+                                            <div className="relative">
+                                                <FlagIcon className="w-8 h-8 text-red-600 fill-red-600 drop-shadow-md" />
+                                                <span className="absolute -top-1 -right-1 bg-white text-red-600 text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center border border-red-100 shadow-sm">
+                                                    {unreadReports}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
                                     <div className="mb-6 text-brand-500">
                                         <item.icon className="w-12 h-12 stroke-[1.5]" />
                                     </div>

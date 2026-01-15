@@ -1,5 +1,5 @@
 
-import React, { useContext, useState, useEffect, useMemo } from 'react';
+import React, { useContext, useState, useEffect, useMemo, memo } from 'react';
 import { AppContext } from '../App';
 import Chatbot from './Chatbot';
 import ThemeToggle from './ThemeToggle';
@@ -23,6 +23,47 @@ const formatCurrency = (value: string | number | undefined): string => {
     if (isNaN(num)) return '-';
     return num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€';
 };
+
+// --- COMPONENTE OPTIMIZADO PARA INPUT DE NOTAS ---
+// Aisla el estado de escritura del resto de la tabla para evitar re-renderizados masivos al teclear.
+const NoteInput = memo(({ 
+    initialValue, 
+    onSave 
+}: { 
+    initialValue: string, 
+    onSave: (val: string) => void 
+}) => {
+    const [val, setVal] = useState(initialValue);
+
+    // Sincronizar si el valor externo cambia (ej: reset)
+    useEffect(() => {
+        setVal(initialValue);
+    }, [initialValue]);
+
+    const handleBlur = () => {
+        if (val !== initialValue) {
+            onSave(val);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.currentTarget.blur(); // Dispara onBlur
+        }
+    };
+
+    return (
+        <input 
+            type="text" 
+            value={val} 
+            onChange={e => setVal(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            className="w-full bg-white/50 dark:bg-black/20 p-2 rounded-lg border border-transparent focus:border-brand-300 focus:bg-white dark:focus:bg-slate-800 outline-none text-xs transition-all placeholder:text-slate-400"
+            placeholder="Añadir nota..."
+        />
+    );
+});
 
 const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const { user, logout } = useContext(AppContext);
@@ -59,8 +100,6 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         });
     }, []);
 
-    // OPTIMIZACIÓN: Crear un mapa indexado de tarifas por referencia de artículo
-    // Esto evita recorrer el array de 5000 tarifas por cada artículo, reduciendo la latencia drásticamente.
     const tariffsByArticle = useMemo(() => {
         const map = new Map<string, Tarifa[]>();
         tarifas.forEach(t => {
@@ -71,14 +110,11 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         return map;
     }, [tarifas]);
 
-    // Función auxiliar rápida para obtener tarifa
     const getTariffForZone = (ref: string, zona: string): Tarifa | undefined => {
         const articleTariffs = tariffsByArticle.get(ref);
         if (!articleTariffs) return undefined;
         
         if (zona === 'Todas') {
-            // Si es 'Todas', devolvemos la primera que encontremos (comportamiento legacy)
-            // O idealmente, no mostraríamos nada específico, pero mantenemos lógica anterior
             return articleTariffs[0];
         }
         return articleTariffs.find(t => t.Tienda === zona);
@@ -97,7 +133,6 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             const articleTariffs = tariffsByArticle.get(ref) || [];
 
             if (showOffers) {
-                // Optimizado: buscar solo en las tarifas de este artículo
                 const hasOffer = articleTariffs.some(t => 
                     t['PVP Oferta'] && t['PVP Oferta'] !== '' && 
                     (isComparing ? selectedCompareZones.includes(t.Tienda) : (zonaFilter === 'Todas' || t.Tienda === zonaFilter))
@@ -106,7 +141,6 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             }
 
             if (showNoPrice) {
-                // Optimizado
                 const hasAnyPrice = articleTariffs.some(t => t['P.V.P.'] !== '');
                 if (hasAnyPrice) return false;
             }
@@ -114,7 +148,10 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         });
     }, [articulos, tariffsByArticle, searchTerm, zonaFilter, showOffers, showNoPrice, seccionFilter, isComparing, selectedCompareZones]);
 
-    const handleNoteChange = (ref: string, val: string) => setNotes(prev => ({ ...prev, [ref]: val }));
+    // Optimización: Callback estable para guardar notas
+    const handleSaveNote = (ref: string, val: string) => {
+        setNotes(prev => ({ ...prev, [ref]: val }));
+    };
 
     const toggleAllZones = () => setSelectedCompareZones(prev => prev.length === posList.length ? [] : posList.map(p => p.zona));
     const toggleZone = (zona: string) => setSelectedCompareZones(prev => prev.includes(zona) ? prev.filter(z => z !== zona) : [...prev, zona]);
@@ -147,7 +184,9 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         setIsExportModalOpen(false);
     };
 
-    const handleSendToAdmin = async () => {
+    const handleSendToAdmin = async (e?: React.MouseEvent) => {
+        if (e) e.preventDefault();
+        
         setIsSending(true);
         const newReport: Report = {
             id: Date.now().toString(),
@@ -180,7 +219,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
 
         } catch (error) {
             console.error("❌ Error en el proceso de envío:", error);
-            alert("⚠️ Listado guardado en la App, pero falló el envío del correo de aviso.");
+            alert("✅ Listado guardado en la App.\n(Nota: El aviso por email ha fallado, pero el admin verá el listado en su panel).");
         } finally {
             setIsSending(false);
             setIsExportModalOpen(false);
@@ -228,19 +267,17 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                     </thead>
                     <tbody className="bg-white dark:bg-slate-900 divide-y dark:divide-slate-800">
                         {filteredData.map(art => {
-                            // Usamos el helper optimizado en lugar de .find sobre todo el array
                             const t = getTariffForZone(art.Referencia, zonaFilter);
                             const hasOffer = t && t['PVP Oferta'] && t['PVP Oferta'] !== '';
                             
                             return (
-                                <tr key={art.Referencia} className={`transition-colors ${hasOffer ? 'bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/40' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
+                                <tr key={art.Referencia} className={`transition-colors border-b dark:border-slate-800 ${hasOffer ? 'bg-green-100 dark:bg-green-900/40 hover:bg-green-200 dark:hover:bg-green-900/60' : 'hover:bg-gray-50 dark:hover:bg-slate-800'}`}>
                                     <td className="p-3 font-mono text-xs text-slate-500">{art.Referencia.replace(/\D/g,'')}</td>
                                     <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{art.Descripción}</td>
                                     {user?.rol !== 'Normal' && <td className="p-3 text-slate-600 dark:text-slate-400 font-medium">{formatCurrency(art['Ult. Costo'])}</td>}
                                     
                                     {!isComparing ? <>
                                         <td className="p-3">
-                                            {/* Lógica PVP Tachado si hay oferta */}
                                             {hasOffer ? (
                                                 <span className="line-through text-red-500 font-bold decoration-2 opacity-70 text-xs">
                                                     {formatCurrency(t?.['P.V.P.'])}
@@ -277,12 +314,9 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                                         );
                                     })}
                                     <td className="p-2">
-                                        <input 
-                                            type="text" 
-                                            value={notes[art.Referencia]||''} 
-                                            onChange={e=>handleNoteChange(art.Referencia, e.target.value)} 
-                                            className="w-full bg-white/50 dark:bg-black/20 p-2 rounded-lg border border-transparent focus:border-brand-300 focus:bg-white dark:focus:bg-slate-800 outline-none text-xs transition-all placeholder:text-slate-400"
-                                            placeholder="Añadir nota..."
+                                        <NoteInput 
+                                            initialValue={notes[art.Referencia] || ''} 
+                                            onSave={(val) => handleSaveNote(art.Referencia, val)} 
                                         />
                                     </td>
                                 </tr>
@@ -336,6 +370,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                             <button 
                                 onClick={handleSendToAdmin} 
                                 disabled={isSending}
+                                type="button"
                                 className="px-5 py-2.5 text-xs font-bold text-white bg-brand-600 hover:bg-brand-700 rounded-lg shadow-lg shadow-brand-600/20 transition-all uppercase tracking-widest flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <MailIcon className="w-4 h-4"/>
