@@ -288,6 +288,15 @@ export const POSList: React.FC<{ pos: PointOfSale[] } & ViewProps> = ({ pos, onU
     const [editingPOS, setEditingPOS] = useState<PointOfSale | null>(null);
     const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, id: '', name: '' });
     const [formData, setFormData] = useState({ código: '', zona: '', grupo: '', población: '', dirección: '' });
+    
+    const [groupsList, setGroupsList] = useState<Group[]>([]);
+
+    // Cargar grupos para el desplegable
+    useEffect(() => {
+        getAppData().then(data => {
+            setGroupsList(data.groups || []);
+        });
+    }, []);
 
     const openCreate = () => {
         setEditingPOS(null);
@@ -302,7 +311,25 @@ export const POSList: React.FC<{ pos: PointOfSale[] } & ViewProps> = ({ pos, onU
     };
 
     const handleSave = () => {
-        if (!formData.código || !formData.zona) return;
+        if (!formData.código || !formData.zona || !formData.grupo) {
+             alert("Código, Zona y Grupo son obligatorios.");
+             return;
+        }
+
+        // VALIDACIÓN: Comprobar duplicados
+        const currentId = editingPOS?.id || '';
+        const codeExists = pos.some(p => p.código === formData.código && p.id !== currentId);
+        const zoneExists = pos.some(p => p.zona === formData.zona && p.id !== currentId);
+
+        if (codeExists) {
+            alert(`El código "${formData.código}" ya está asignado a otra tienda.`);
+            return;
+        }
+        if (zoneExists) {
+            alert(`La zona "${formData.zona}" ya existe.`);
+            return;
+        }
+
         let updated = [...pos];
         if (editingPOS) updated = pos.map(p => p.id === editingPOS.id ? { ...p, ...formData } : p);
         else updated.push({ id: Date.now().toString(), ...formData });
@@ -324,7 +351,12 @@ export const POSList: React.FC<{ pos: PointOfSale[] } & ViewProps> = ({ pos, onU
                 </div>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Grupo</label>
-                    <input type="text" value={formData.grupo} onChange={e => setFormData({...formData, grupo: e.target.value})} className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-lg dark:bg-slate-900 focus:border-brand-500 outline-none font-medium" placeholder="Nombre del grupo..." />
+                    <select value={formData.grupo} onChange={e => setFormData({...formData, grupo: e.target.value})} className="w-full p-3 border border-gray-200 dark:border-slate-700 rounded-lg dark:bg-slate-900 focus:border-brand-500 outline-none font-medium">
+                        <option value="">-- Seleccionar Grupo --</option>
+                        {groupsList.map(g => (
+                            <option key={g.id} value={g.nombre}>{g.nombre}</option>
+                        ))}
+                    </select>
                 </div>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-400 uppercase tracking-widest">Población</label>

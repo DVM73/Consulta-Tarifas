@@ -158,9 +158,19 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
 
     const generateCSV = () => {
         const dataToExport = exportType === 'Completo' ? filteredData : filteredData.filter(a => notes[a.Referencia]);
-        let headers = `Referencia;Descripción;Coste;Nota${isComparing ? selectedCompareZones.map(z => `;${z}`).join('') : ';PVP'}`;
+        
+        // 1. Construir Cabeceras: Nota va AL FINAL
+        const priceHeaders = isComparing 
+            ? selectedCompareZones.map(z => `;${z}`).join('') 
+            : ';PVP';
+            
+        let headers = `Referencia;Descripción;Coste${priceHeaders};Nota`;
+
+        // 2. Construir Filas
         const rows = dataToExport.map(art => {
-            let row = `${art.Referencia};${art.Descripción};${art['Ult. Costo']};${notes[art.Referencia] || ''}`;
+            let row = `${art.Referencia};${art.Descripción};${art['Ult. Costo']}`;
+            
+            // Añadir precios antes de la nota
             if (isComparing) {
                 selectedCompareZones.forEach(z => {
                     const t = getTariffForZone(art.Referencia, z);
@@ -170,8 +180,13 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                 const t = getTariffForZone(art.Referencia, zonaFilter);
                 row += `;${t?.['P.V.P.'] || '-'}`;
             }
+
+            // Añadir nota al final
+            row += `;${notes[art.Referencia] || ''}`;
+            
             return row;
         });
+        
         return [headers, ...rows].join("\n");
     };
 
