@@ -55,7 +55,6 @@ const AdminDashboard: React.FC = () => {
             case 'settings': return (
                 <SettingsView 
                     companyName={data.companyName} 
-                    notificationEmail={data.notificationEmail} 
                     onUpdate={handleUpdateData} 
                 />
             );
@@ -77,7 +76,7 @@ const AdminDashboard: React.FC = () => {
         { id: 'export', label: 'Exportación de datos', desc: 'Exportar todos los datos a JSON.', icon: ExportIcon },
         { id: 'reports', label: 'Buzón de Reportes', desc: 'Ver informes enviados por supervisores.', icon: MailIcon },
         { id: 'backup', label: 'Copia de Seguridad', desc: 'Crear una copia de la aplicación.', icon: HistoryIcon },
-        { id: 'settings', label: 'Configuración General', desc: 'Personalizar nombre de empresa y correo.', icon: SettingsIcon },
+        { id: 'settings', label: 'Configuración General', desc: 'Personalizar nombre de empresa.', icon: SettingsIcon },
     ];
 
     // Contar reportes sin leer

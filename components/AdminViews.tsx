@@ -902,26 +902,18 @@ export const BackupView: React.FC<{ backups: Backup[], currentData: AppData, onU
     );
 };
 
-export const SettingsView: React.FC<{companyName?: string, notificationEmail?: string, onUpdate: (u: Partial<AppData>) => void}> = ({companyName, notificationEmail, onUpdate}) => {
+export const SettingsView: React.FC<{companyName?: string, onUpdate: (u: Partial<AppData>) => void}> = ({companyName, onUpdate}) => {
     const [name, setName] = useState(companyName || '');
-    const [email, setEmail] = useState(notificationEmail || '');
     const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         setName(companyName || '');
-        setEmail(notificationEmail || '');
-    }, [companyName, notificationEmail]);
-
-    const handleShowHelp = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation();
-        window.alert("Este correo recibirá los avisos cuando un supervisor envíe un listado. Requiere que la extensión \"Trigger Email\" esté activa en Firebase.");
-    };
+    }, [companyName]);
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await onUpdate({ companyName: name, notificationEmail: email });
+            await onUpdate({ companyName: name });
             alert("✅ Configuración guardada.");
         } catch (e) {
             alert("❌ Error al guardar.");
@@ -942,28 +934,12 @@ export const SettingsView: React.FC<{companyName?: string, notificationEmail?: s
                         <label className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Nombre de la Empresa</label>
                         <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-3.5 border border-gray-200 dark:border-slate-700 rounded-lg outline-none focus:border-brand-500 dark:bg-slate-950 font-bold transition-all" />
                     </div>
-                    <div className="space-y-3 text-left">
-                        <div className="flex justify-between items-center relative">
-                            <label className="text-sm font-bold text-slate-700 dark:text-slate-300 uppercase tracking-tight">Correo para Notificaciones</label>
-                            <button type="button" onClick={handleShowHelp} className="text-indigo-500 hover:text-indigo-600 p-2 -mr-2 cursor-pointer z-10" title="Ayuda">
-                                <HelpIcon className="w-5 h-5 stroke-[2.5]" />
-                            </button>
-                        </div>
-                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-3.5 border border-orange-200 dark:border-orange-900/30 rounded-lg outline-none focus:border-brand-500 dark:bg-slate-950 font-bold transition-all" placeholder="ejemplo@correo.com" />
-                        <p className="text-[11px] font-bold text-orange-600 flex items-center gap-2 italic"><span className="text-base not-italic">⚠️</span> Introduce un email para recibir avisos automáticos.</p>
-                    </div>
+                    
                     <div className="space-y-4 pt-4">
                         <button type="button" onClick={handleSave} disabled={isSaving} className="w-full bg-[#4f46e5] hover:bg-brand-700 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all active:scale-95 shadow-lg disabled:opacity-70 uppercase text-xs tracking-widest">
                             <SparklesIcon className="w-4 h-4" /> {isSaving ? 'Guardando...' : 'Guardar Configuración'}
                         </button>
-                        <button type="button" className="w-full border border-gray-100 dark:border-slate-800 bg-gray-50/30 text-indigo-600 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all hover:bg-indigo-50/50 uppercase text-xs tracking-widest">
-                            <MailIcon className="w-4 h-4" /> Enviar Email de Prueba
-                        </button>
                     </div>
-                </div>
-                <div className="mt-12 p-6 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-gray-100 dark:border-slate-800 text-left w-full shadow-inner">
-                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-3 flex items-center gap-2"><HelpIcon className="w-3.5 h-3.5 stroke-[2.5]" /> NOTA TÉCNICA:</h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-bold">La aplicación utiliza la colección "mail" de Firestore. Asegúrate de que las reglas de seguridad permiten la escritura y que tienes configurado un proveedor SMTP en la extensión de Firebase.</p>
                 </div>
             </div>
         </div>

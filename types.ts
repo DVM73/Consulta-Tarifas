@@ -94,7 +94,6 @@ export interface AppData {
     tarifas: Tarifa[];
     groups: Group[];
     companyName?: string;
-    notificationEmail?: string;
     lastUpdated?: string;
     reports?: Report[];
     backups?: Backup[];

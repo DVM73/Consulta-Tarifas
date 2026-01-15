@@ -78,7 +78,6 @@ const sanitizeAppData = (data: any): AppData => {
         tarifas: data.tarifas || [],
         groups: data.groups || [],
         companyName: s(data.companyName) || "Paraíso de la Carne Selección, S.L.U.",
-        notificationEmail: s(data.notificationEmail),
         lastUpdated: s(data.lastUpdated) || new Date().toLocaleString(),
         reports: data.reports || [],
         backups: data.backups || [],
