@@ -5,6 +5,8 @@ import UserDashboard from './UserDashboard';
 import { getAppData } from '../services/dataService';
 import { AppData, PointOfSale } from '../types';
 import { ReadOnlyPOSList, ReadOnlyGroupsList, ReadOnlyUsersList } from './AdminViews';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 import LogoutIcon from './icons/LogoutIcon';
 import ThemeToggle from './ThemeToggle';
@@ -61,12 +63,171 @@ const SupervisorDashboard: React.FC = () => {
 
   const handleGenerateInventory = () => {
       if (selectedPosIds.length === 0) return alert("Selecciona al menos un punto de venta.");
-      alert(`Generando PDF de inventarios para ${invMonth} ${invYear} de ${selectedPosIds.length} tiendas...`);
+      
+      try {
+        const doc = new jsPDF();
+        const companyName = data?.companyName || "Paraíso de la Carne";
+        let isFirstPage = true;
+
+        selectedPosIds.forEach(posId => {
+            const pos = data?.pos.find(p => p.id === posId);
+            if (!pos) return;
+
+            if (!isFirstPage) doc.addPage();
+            isFirstPage = false;
+
+            // Encabezado
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text(companyName, 14, 10);
+
+            doc.setFontSize(16);
+            doc.setTextColor(0);
+            doc.setFont("helvetica", "bold");
+            doc.text(`INVENTARIO - ${invMonth} ${invYear}`, 14, 20);
+            
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            doc.text(`TIENDA: ${pos.zona} - ${pos.población}`, 14, 28);
+            doc.line(14, 30, 196, 30);
+
+            // Preparar datos (Ordenados por Familia y luego Descripción)
+            const rows = (data?.articulos || []).map(art => [
+                art.Referencia,
+                art.Descripción,
+                // Buscamos el nombre de la familia usando el ID
+                data?.families.find(f => f.id === art.Familia)?.nombre || art.Familia, 
+                '' // Espacio vacío para escribir el stock
+            ]).sort((a, b) => a[2].localeCompare(b[2]) || a[1].localeCompare(b[1]));
+
+            autoTable(doc, {
+                startY: 35,
+                head: [['REF', 'ARTÍCULO', 'FAMILIA', 'STOCK']],
+                body: rows,
+                theme: 'grid',
+                styles: { fontSize: 8, cellPadding: 2, valign: 'middle' },
+                headStyles: { fillColor: [60, 60, 60], textColor: 255, fontStyle: 'bold' },
+                columnStyles: {
+                    0: { cellWidth: 20, fontStyle: 'bold' },
+                    1: { cellWidth: 'auto' },
+                    2: { cellWidth: 40 },
+                    3: { cellWidth: 30 }
+                },
+                didDrawPage: function (data) {
+                    // Pie de página
+                    doc.setFontSize(8);
+                    doc.text(`Página ${doc.internal.getNumberOfPages()}`, 196, 290, { align: 'right' });
+                }
+            });
+        });
+
+        doc.save(`Inventario_${invMonth}_${invYear}.pdf`);
+        alert("✅ PDF de Inventario generado correctamente.");
+
+      } catch (error) {
+          console.error(error);
+          alert("Error al generar el PDF. Revisa la consola.");
+      }
   };
 
   const handleGenerateTariff = () => {
       const selectedPos = data?.pos.find(p => p.id === tarPosId);
-      alert(`Generando PDF de tarifas para ${selectedPos?.zona} con fecha ${tarRevisionDate}...`);
+      if (!selectedPos) return alert("Selecciona una tienda válida.");
+
+      try {
+        const doc = new jsPDF();
+        const companyName = data?.companyName || "Paraíso de la Carne";
+
+        // Convertir colores Hex a RGB para jsPDF
+        const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0];
+        };
+        const headerRgb = hexToRgb(tarHeaderColor);
+        const infoRgb = hexToRgb(tarMarginColor);
+
+        // Encabezado
+        doc.setFontSize(22);
+        doc.setTextColor(headerRgb[0], headerRgb[1], headerRgb[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text("TARIFA DE PRECIOS", 14, 20);
+
+        doc.setFontSize(10);
+        doc.setTextColor(150);
+        doc.text(companyName, 14, 10);
+
+        doc.setFontSize(11);
+        doc.setTextColor(infoRgb[0], infoRgb[1], infoRgb[2]);
+        doc.setFont("helvetica", "bold");
+        doc.text(`TIENDA: ${selectedPos.zona} (${selectedPos.población})`, 14, 30);
+        
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(0);
+        doc.text(`Fecha de Revisión: ${new Date(tarRevisionDate).toLocaleDateString('es-ES')}`, 14, 36);
+
+        // Datos de la tabla
+        const showPvp = tarShowPvp === 'Si';
+        const headers = showPvp ? [['REF', 'DESCRIPCIÓN', 'FAMILIA', 'PVP']] : [['REF', 'DESCRIPCIÓN', 'FAMILIA']];
+
+        const rows = (data?.articulos || []).map(art => {
+            // Buscar tarifa para esta tienda y artículo
+            const tariff = data?.tarifas.find(t => 
+                t.Tienda === selectedPos.zona && 
+                String(t['Cód. Art.']).trim() === String(art.Referencia).trim()
+            );
+            
+            // Formatear precio
+            let precioStr = '-';
+            if (tariff && tariff['P.V.P.']) {
+                const num = parseFloat(String(tariff['P.V.P.']).replace(',', '.'));
+                if (!isNaN(num)) precioStr = num.toLocaleString('es-ES', {minimumFractionDigits: 2}) + ' €';
+            }
+
+            const familiaNombre = data?.families.find(f => f.id === art.Familia)?.nombre || art.Familia;
+
+            if (showPvp) {
+                return [art.Referencia, art.Descripción, familiaNombre, precioStr];
+            } else {
+                return [art.Referencia, art.Descripción, familiaNombre];
+            }
+        }).sort((a, b) => a[2].localeCompare(b[2]) || a[1].localeCompare(b[1])); // Ordenar por Familia -> Descripción
+
+        autoTable(doc, {
+            startY: 42,
+            head: headers,
+            body: rows,
+            theme: 'striped',
+            headStyles: { 
+                fillColor: [headerRgb[0], headerRgb[1], headerRgb[2]], 
+                textColor: 255,
+                fontStyle: 'bold'
+            },
+            styles: { fontSize: 9, cellPadding: 1.5 },
+            columnStyles: showPvp ? {
+                0: { cellWidth: 20, fontStyle: 'bold' },
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 40 },
+                3: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
+            } : {
+                0: { cellWidth: 20, fontStyle: 'bold' },
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 50 }
+            },
+            didDrawPage: function (data) {
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.text(`Página ${doc.internal.getNumberOfPages()}`, 196, 290, { align: 'right' });
+            }
+        });
+
+        doc.save(`Tarifa_${selectedPos.zona}_${tarRevisionDate}.pdf`);
+        alert("✅ PDF de Tarifa generado correctamente.");
+
+      } catch (error) {
+          console.error(error);
+          alert("Error generando el PDF. Revisa la consola.");
+      }
   };
 
   const renderViewContent = () => {
