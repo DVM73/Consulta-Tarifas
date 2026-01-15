@@ -73,13 +73,11 @@ const SupervisorDashboard: React.FC = () => {
           const doc = new jsPDF();
           
           // 1. OBTENER ARTÍCULOS PRINCIPALES (Con PVP en esta tienda)
-          // Excluimos las familias del anexo para que no salgan duplicadas o mezcladas
           const mainArticles = (data?.articulos || []).filter(art => {
               const tarifa = data?.tarifas.find(t => 
                   t.Tienda === pos.zona && 
                   String(t['Cód. Art.']).trim() === String(art.Referencia).trim()
               );
-              // Debe tener tarifa, tener precio, y NO ser de las familias de anexo
               return tarifa && tarifa['P.V.P.'] && !FAMILIAS_ANEXO.includes(art.Familia);
           });
 
@@ -91,21 +89,28 @@ const SupervisorDashboard: React.FC = () => {
               return a.Descripción.localeCompare(b.Descripción);
           });
 
-          // 2. OBTENER ARTÍCULOS ANEXO (Especias, Envases, Limpieza)
-          // Estos suelen ser generales, pero si es necesario filtrar por si tienen tarifa, se puede añadir.
-          // Asumiremos que se listan todos los disponibles en la BD de esas familias.
+          // 2. OBTENER ARTÍCULOS ANEXO
           const appendixArticles = (data?.articulos || []).filter(art => 
               FAMILIAS_ANEXO.includes(art.Familia)
           );
           appendixArticles.sort((a, b) => a.Descripción.localeCompare(b.Descripción));
 
           // --- GENERAR PÁGINA 1: CARNICERÍA/CHARCUTERÍA ---
-          generateInventoryPage(doc, pos, mainArticles, `INVENTARIO CARNICERÍA/CHARCUTERÍA - ${invMonth} ${invYear}-`);
+          generateInventoryTable(doc, pos, mainArticles, `INVENTARIO CARNICERÍA/CHARCUTERÍA - ${invMonth} ${invYear} -`);
 
-          // --- GENERAR PÁGINA 2: ANEXO ---
+          // --- GENERAR PÁGINA 2 (o siguientes): ANEXO ---
           if (appendixArticles.length > 0) {
-              doc.addPage();
-              generateInventoryPage(doc, pos, appendixArticles, `INVENTARIO ESPECIAS / ENVASES / LIMPIEZA - ${invMonth} ${invYear}-`);
+              if (mainArticles.length > 0) doc.addPage();
+              generateInventoryTable(doc, pos, appendixArticles, `INVENTARIO ESPECIAS / ENVASES / LIMPIEZA - ${invMonth} ${invYear} -`);
+          }
+
+          // --- PAGINACIÓN (Página X de Y) ---
+          const pageCount = doc.internal.getNumberOfPages();
+          for (let i = 1; i <= pageCount; i++) {
+              doc.setPage(i);
+              doc.setFontSize(8);
+              doc.setTextColor(100);
+              doc.text(`Página ${i} de ${pageCount}`, 196, 290, { align: 'right' });
           }
 
           // Guardar archivo individual
@@ -115,49 +120,60 @@ const SupervisorDashboard: React.FC = () => {
       alert(`✅ Se han generado ${selectedPosIds.length} archivos de inventario.`);
   };
 
-  const generateInventoryPage = (doc: jsPDF, pos: PointOfSale, articles: any[], title: string) => {
-        // Encabezado Tabla
+  const generateInventoryTable = (doc: jsPDF, pos: PointOfSale, articles: any[], title: string) => {
+        // Cabecera de la tabla que incluye el Título y los datos de la Tienda
+        // Eliminamos las columnas CT y Tienda del cuerpo para ahorrar espacio horizontal
         autoTable(doc, {
-            head: [[
-                { content: title, colSpan: 7, styles: { halign: 'center', fontSize: 12, fontStyle: 'bold' } }
-            ], [
-                'C.T.', 'Tienda', 'C.Art', 'Secc.', 'Descripción', 'EXISTENCIAS', 'NOTA'
-            ]],
+            head: [
+                [
+                    { 
+                        content: `${title}\nTIENDA: ${pos.zona} (${pos.código}) - ${pos.población}`, 
+                        colSpan: 5, 
+                        styles: { 
+                            halign: 'center', 
+                            fontSize: 10, 
+                            fontStyle: 'bold', 
+                            fillColor: [255, 255, 255], // Fondo blanco (ECO)
+                            textColor: 0, 
+                            cellPadding: 3 
+                        } 
+                    }
+                ], 
+                ['C.Art', 'Secc.', 'Descripción', 'EXISTENCIAS', 'NOTA']
+            ],
             body: articles.map(art => [
-                pos.código,      // C.T.
-                pos.zona,        // Tienda
                 art.Referencia,  // C.Art
                 art.Sección,     // Secc.
                 art.Descripción, // Descripción
                 '',              // EXISTENCIAS (Vacio)
                 ''               // NOTA (Vacio)
             ]),
-            theme: 'grid',
+            theme: 'grid', // Grid ahorra tinta y facilita la escritura manual
             styles: { 
-                fontSize: 9, 
-                cellPadding: 1.5, 
+                fontSize: 8, // Fuente optimizada
+                cellPadding: 2, 
                 lineColor: [0, 0, 0], 
                 lineWidth: 0.1,
-                textColor: [0,0,0]
+                textColor: [0,0,0],
+                valign: 'middle'
             },
             headStyles: { 
-                fillColor: [255, 255, 255], 
+                fillColor: [255, 255, 255], // Cabeceras blancas
                 textColor: [0, 0, 0], 
                 fontStyle: 'bold',
                 lineWidth: 0.2,
-                lineColor: [0, 0, 0]
+                lineColor: [0, 0, 0],
+                halign: 'center'
             },
             columnStyles: {
-                0: { cellWidth: 10, halign: 'center' }, // C.T.
-                1: { cellWidth: 15, halign: 'center' }, // Tienda
-                2: { cellWidth: 15, halign: 'center' }, // C.Art
-                3: { cellWidth: 10, halign: 'center' }, // Secc.
-                4: { cellWidth: 'auto' },               // Descripción
-                5: { cellWidth: 25 },                   // Existencias
-                6: { cellWidth: 40 }                    // Nota
+                0: { cellWidth: 15, halign: 'center' }, // C.Art
+                1: { cellWidth: 10, halign: 'center' }, // Secc.
+                2: { cellWidth: 'auto', halign: 'left' }, // Descripción
+                3: { cellWidth: 25 },                   // Existencias
+                4: { cellWidth: 40 }                    // Nota
             },
-            startY: 10,
-            margin: { top: 10, left: 10, right: 10 }
+            margin: { top: 10, left: 10, right: 10, bottom: 15 },
+            pageBreak: 'auto' 
         });
   };
 
@@ -265,9 +281,10 @@ const SupervisorDashboard: React.FC = () => {
                 2: { cellWidth: 50 }
             },
             didDrawPage: function (data) {
+                const pageCount = doc.internal.getNumberOfPages();
                 doc.setFontSize(8);
                 doc.setTextColor(150);
-                doc.text(`Página ${doc.internal.getNumberOfPages()}`, 196, 290, { align: 'right' });
+                doc.text(`Página ${pageCount}`, 196, 290, { align: 'right' });
             }
         });
 
