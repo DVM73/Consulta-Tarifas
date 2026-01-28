@@ -1,27 +1,14 @@
 
-import React, { useState, createContext, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, Suspense } from 'react';
 import LoginScreen from './components/LoginScreen';
-import UserDashboard from './components/UserDashboard';
-import AdminDashboard from './components/AdminDashboard';
-import SupervisorDashboard from './components/SupervisorDashboard';
 import { User, AppData } from './types';
 import { getAppData } from './services/dataService';
+import { AppContext } from './context/AppContext';
 
-interface AppContextType {
-  theme: 'light' | 'dark';
-  toggleTheme: () => void;
-  user: User | null;
-  logout: () => void;
-  appData: AppData | null;
-}
-
-export const AppContext = createContext<AppContextType>({
-  theme: 'light',
-  toggleTheme: () => {},
-  user: null,
-  logout: () => {},
-  appData: null,
-});
+// Importación Lazy para optimizar carga y evitar ciclos
+const UserDashboard = React.lazy(() => import('./components/UserDashboard'));
+const AdminDashboard = React.lazy(() => import('./components/AdminDashboard'));
+const SupervisorDashboard = React.lazy(() => import('./components/SupervisorDashboard'));
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -59,7 +46,6 @@ const App: React.FC = () => {
       localStorage.setItem('theme', 'light');
     }
 
-    // TIMEOUT DE SEGURIDAD
     const safetyTimer = setTimeout(() => {
         setLoading((currentLoading) => {
             if (currentLoading) {
@@ -93,6 +79,15 @@ const App: React.FC = () => {
       appData
   }), [theme, user, appData]);
   
+  const LoadingFallback = () => (
+    <div className="h-full w-full flex items-center justify-center bg-[#f3f4f6] dark:bg-slate-950">
+        <div className="text-center">
+            <div className="w-10 h-10 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-brand-600 font-bold text-xs tracking-widest uppercase animate-pulse">Cargando Módulo...</p>
+        </div>
+    </div>
+  );
+
   const renderContent = () => {
     if (loading) {
         return (
@@ -106,7 +101,6 @@ const App: React.FC = () => {
     }
 
     if (loadError && !appData) {
-        // Fallback si falla todo
         return (
             <div className="h-screen w-screen flex items-center justify-center bg-red-50 p-10">
                 <div className="text-center max-w-lg">
@@ -122,14 +116,13 @@ const App: React.FC = () => {
         return <LoginScreen onLogin={handleLogin} appData={appData} />;
     }
 
-    switch (user.rol) {
-        case 'admin':
-            return <AdminDashboard />;
-        case 'Supervisor':
-            return <SupervisorDashboard />;
-        default:
-            return <UserDashboard />;
-    }
+    return (
+        <Suspense fallback={<LoadingFallback />}>
+            {user.rol === 'admin' && <AdminDashboard />}
+            {user.rol === 'Supervisor' && <SupervisorDashboard />}
+            {user.rol !== 'admin' && user.rol !== 'Supervisor' && <UserDashboard />}
+        </Suspense>
+    );
   };
 
   return (

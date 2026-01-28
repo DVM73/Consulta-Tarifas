@@ -1,6 +1,6 @@
 
 import React, { useContext, useState, useEffect } from 'react';
-import { AppContext } from '../App';
+import { AppContext } from '../context/AppContext';
 import { AdminView, AppData } from '../types';
 import { getAppData, saveAllData } from '../services/dataService';
 import ThemeToggle from './ThemeToggle';
@@ -46,7 +46,8 @@ const AdminDashboard: React.FC = () => {
     const renderContent = () => {
         if (!data) return <div className="text-center p-10 font-bold text-red-500 uppercase text-xs tracking-widest">Error de base de datos</div>;
         switch (view) {
-            case 'users': return <UsersList users={data.users || []} onUpdate={handleUpdateData} />;
+            // CORRECCIÓN AQUÍ: Pasamos posList explícitamente a UsersList
+            case 'users': return <UsersList users={data.users || []} posList={data.pos || []} onUpdate={handleUpdateData} />;
             case 'pos': return <POSList pos={data.pos || []} onUpdate={handleUpdateData} />;
             case 'groups': return <GroupsList groups={data.groups || []} onUpdate={handleUpdateData} />;
             case 'families': return <FamiliesList families={data.families || []} onUpdate={handleUpdateData} />;

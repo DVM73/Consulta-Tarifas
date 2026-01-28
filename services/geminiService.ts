@@ -1,14 +1,38 @@
 
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 
-// Initialize the Google GenAI client directly using the environment variable as per guidelines.
-// Always use a named parameter object for the constructor.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 let chatSession: Chat | null = null;
+let aiClient: GoogleGenAI | null = null;
+
+// Inicializador perezoso para asegurar que las variables de entorno estén listas
+const getAiClient = (): GoogleGenAI | null => {
+    if (aiClient) return aiClient;
+    
+    // Verificación segura de la clave
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        console.warn("⚠️ API Key de Google GenAI no encontrada.");
+        return null;
+    }
+    
+    try {
+        aiClient = new GoogleGenAI({ apiKey });
+        return aiClient;
+    } catch (e) {
+        console.error("Error inicializando cliente AI:", e);
+        return null;
+    }
+};
 
 // Función para iniciar o reiniciar el chat con un contexto específico (datos de la pantalla)
 export async function startNewChat(contextData: string = ""): Promise<void> {
+    const ai = getAiClient();
+    
+    if (!ai) {
+        console.error("No se puede iniciar el chat: Cliente AI no disponible.");
+        return;
+    }
+
     // Instrucción del sistema: Analista de Datos + Asistente General en Español
     const systemInstruction = `
 Eres Gemini, un asistente de inteligencia artificial integrado en la aplicación corporativa "Consulta de Tarifas".
@@ -29,7 +53,6 @@ EJEMPLOS DE INTERACCIÓN:
     `;
 
     try {
-        // Correct usage of chats.create with gemini-3-flash-preview and systemInstruction in config.
         chatSession = ai.chats.create({
             model: 'gemini-3-flash-preview',
             config: {
@@ -51,14 +74,11 @@ export async function getBotResponse(message: string): Promise<string> {
     }
 
     if (!chatSession) {
-        throw new Error("No se pudo establecer la sesión de chat.");
+        return "Error: No se pudo conectar con el servicio de IA. Verifica tu API Key.";
     }
 
-    // sendMessage returns GenerateContentResponse
     const result: GenerateContentResponse = await chatSession.sendMessage({ message: message });
     
-    // The simplest and most direct way to get the generated text content is by accessing the .text property.
-    // Do not call .text() as it is a getter property.
     if (result && result.text) {
         return result.text;
     } else {

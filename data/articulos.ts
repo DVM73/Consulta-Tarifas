@@ -7,7 +7,8 @@ export const articulosRawData = [
     "Familia": "JAMONES",
     "Ult.Pro": "PROVEEDOR A",
     "Ult. Costo": "65.50",
-    "IVA": "10"
+    "IVA": "10",
+    "UniMed": "P"
   },
   {
     "Referencia": "2001",
@@ -16,7 +17,8 @@ export const articulosRawData = [
     "Familia": "QUESOS",
     "Ult.Pro": "LA MANCHA S.L.",
     "Ult. Costo": "12.20",
-    "IVA": "4"
+    "IVA": "4",
+    "UniMed": "P"
   },
   {
     "Referencia": "1002",
@@ -25,7 +27,8 @@ export const articulosRawData = [
     "Familia": "EMBUTIDOS",
     "Ult.Pro": "IBERICOS S.A.",
     "Ult. Costo": "18.90",
-    "IVA": "10"
+    "IVA": "10",
+    "UniMed": "P"
   },
   {
     "Referencia": "3001",
@@ -34,6 +37,7 @@ export const articulosRawData = [
     "Familia": "CARNE FRESCA",
     "Ult.Pro": "GANADERIA NORTE",
     "Ult. Costo": "22.00",
-    "IVA": "10"
+    "IVA": "10",
+    "UniMed": "P"
   }
 ];

@@ -1,6 +1,6 @@
 
 import React, { useContext } from 'react';
-import { AppContext } from '../App';
+import { AppContext } from '../context/AppContext';
 import SunIcon from './icons/SunIcon';
 import MoonIcon from './icons/MoonIcon';
 

@@ -1,37 +1,6 @@
 
 export const usuariosRawData = {
-  "users": [
-    {
-      "id": "1",
-      "nombre": "admin",
-      "clave": "admin",
-      "zona": "OFI",
-      "grupo": "Administración",
-      "departamento": "Supervisor",
-      "rol": "admin",
-      "verPVP": true
-    },
-    {
-      "id": "2",
-      "nombre": "Supervisor Zona",
-      "clave": "1234",
-      "zona": "ZN1",
-      "grupo": "Grupo A",
-      "departamento": "Supervisor",
-      "rol": "Supervisor",
-      "verPVP": true
-    },
-    {
-      "id": "3",
-      "nombre": "Carnicero Demo",
-      "clave": "0000",
-      "zona": "CH1",
-      "grupo": "Grupo A",
-      "departamento": "Carnicero/a",
-      "rol": "Normal",
-      "verPVP": false
-    }
-  ],
+  "users": [],
   "pos": [
     {
       "id": "pos1",

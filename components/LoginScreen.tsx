@@ -20,15 +20,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
   const [error, setError] = useState('');
   const [connectionStatus, setConnectionStatus] = useState<'loading' | 'error' | 'ready' | 'local'>('loading');
   
-  // Detectar si estamos listos o en modo local
   useEffect(() => {
     if (appData) {
-        // Verificar si estamos en modo local detectando la cadena de demostración o datos reales
         const isLocalMode = !process.env.FIREBASE_API_KEY || appData.companyName?.includes('(DEMO)');
         setConnectionStatus(isLocalMode ? 'local' : 'ready');
     } else {
         const timer = setTimeout(() => {
-            // Si tarda mucho pero no hay datos, probablemente es error de carga inicial
             setConnectionStatus('error');
         }, 5000);
         return () => clearTimeout(timer);
@@ -37,21 +34,36 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
 
   const companyName = appData?.companyName || 'Cargando Sistema...';
   const lastUpdatedText = appData?.lastUpdated || 'Conectando con la nube...';
+  // Aseguramos que sea un array, incluso si es undefined
   const users = appData?.users || [];
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     
     if (!username.trim() || !password.trim()) {
       setError('Introduce tus credenciales');
       return;
     }
 
-    // Login especial para admin en caso de emergencia/fallback
-    if (username === 'admin' && password === 'admin') {
-         // Si el usuario admin existe en la BD local, usamos ese perfil, si no, uno temporal
-         const adminUser = users.find(u => u.nombre === 'admin') || {
-             id: 'admin-temp',
+    // 1. INTENTAR LOGIN NORMAL CONTRA BASE DE DATOS (Prioridad)
+    // Buscamos si existe el usuario en la lista cargada
+    const foundUser = users.find(u => 
+      String(u.nombre).trim().toLowerCase() === username.trim().toLowerCase() && 
+      String(u.clave) === password
+    );
+
+    if (foundUser) {
+        onLogin(foundUser);
+        return;
+    }
+
+    // 2. LOGIN DE EMERGENCIA / CONFIGURACIÓN INICIAL
+    // Esta puerta trasera SOLO se abre si NO hay usuarios en la base de datos.
+    // Una vez creado el primer usuario, esta condición (users.length === 0) será falsa y el acceso se bloqueará.
+    if (users.length === 0 && username === 'admin' && password === 'admin') {
+         const tempAdminUser: User = {
+             id: 'admin-init', // ID temporal
              nombre: 'admin',
              clave: 'admin',
              zona: 'OFI',
@@ -60,20 +72,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
              rol: 'admin',
              verPVP: true
          };
-         onLogin(adminUser as User);
+         console.warn("⚠️ Acceso concedido mediante credenciales de inicialización (DB vacía).");
+         onLogin(tempAdminUser);
          return;
     }
 
-    const foundUser = users.find(u => 
-      String(u.nombre).trim().toLowerCase() === username.trim().toLowerCase() && 
-      String(u.clave) === password
-    );
-
-    if (foundUser) {
-        onLogin(foundUser);
-    } else {
-        setError('Usuario o contraseña incorrectos');
-    }
+    setError('Usuario o contraseña incorrectos');
   };
 
   return (
@@ -90,21 +94,21 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
             v{APP_VERSION}
           </div>
           
-          {connectionStatus === 'local' && (
-              <div className="bg-orange-50 text-orange-600 px-4 py-2 rounded-lg text-xs text-center border border-orange-100 mb-2 font-medium w-full">
-                  <strong className="block uppercase tracking-widest mb-1">⚠️ MODO LOCAL / DEMO</strong>
-                  Los cambios se guardarán solo en este navegador.
-              </div>
-          )}
-          
           {connectionStatus === 'error' && (
                <div className="bg-red-50 text-red-600 p-3 rounded-lg text-xs text-center border border-red-100 mb-2">
                   <strong>⚠️ Error de Carga</strong><br/>
                   No se han podido cargar los datos iniciales.
               </div>
           )}
+
+          {/* Indicador visual de modo Setup */}
+          {users.length === 0 && connectionStatus !== 'loading' && (
+              <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 p-2 rounded text-[10px] font-bold uppercase tracking-wide border border-blue-100 dark:border-blue-800 mb-2">
+                  Modo Configuración Inicial Activo
+              </div>
+          )}
           
-          {connectionStatus === 'ready' && (
+          {connectionStatus === 'ready' && users.length > 0 && (
                <p className="text-gray-500 dark:text-gray-400 text-sm">Inicia sesión en tu cuenta</p>
           )}
         </div>
@@ -121,7 +125,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
                 value={username}
                 onChange={(e) => { setUsername(e.target.value); setError(''); }}
                 className="block w-full border border-gray-300 dark:border-slate-700 rounded-lg pl-10 pr-3 py-3 text-sm focus:ring-brand-500 focus:border-brand-500 outline-none transition-all bg-white dark:bg-slate-800 dark:text-white"
-                placeholder="usuario"
+                placeholder={users.length === 0 ? "admin" : "usuario"}
                 autoComplete="username"
               />
             </div>
@@ -138,7 +142,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 className="block w-full border border-gray-300 dark:border-slate-700 rounded-lg pl-10 pr-10 py-3 text-sm focus:ring-brand-500 focus:border-brand-500 outline-none transition-all bg-white dark:bg-slate-800 dark:text-white"
-                placeholder="contraseña"
+                placeholder={users.length === 0 ? "admin" : "contraseña"}
                 autoComplete="current-password"
               />
               <button
@@ -171,11 +175,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, appData }) => {
           <p className="text-gray-400 text-[10px] font-medium mb-1">
             Datos: {lastUpdatedText}
           </p>
-          {(connectionStatus === 'local' || connectionStatus === 'ready') && (
-              <p className="text-brand-600/60 text-[10px] font-bold bg-brand-50 inline-block px-2 py-1 rounded">
-                Demo: admin / admin
-              </p>
-          )}
         </div>
       </div>
       <div className="fixed bottom-4 right-4 text-gray-400 dark:text-gray-600 text-[10px] font-medium pointer-events-none">

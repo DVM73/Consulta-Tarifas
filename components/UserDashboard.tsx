@@ -1,6 +1,6 @@
 
 import React, { useContext, useState, useEffect, useMemo, memo } from 'react';
-import { AppContext } from '../App';
+import { AppContext } from '../context/AppContext';
 import Chatbot from './Chatbot';
 import ThemeToggle from './ThemeToggle';
 import SearchIcon from './icons/SearchIcon';
@@ -24,8 +24,6 @@ const formatCurrency = (value: string | number | undefined): string => {
     return num.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '€';
 };
 
-// --- COMPONENTE OPTIMIZADO PARA INPUT DE NOTAS ---
-// Aisla el estado de escritura del resto de la tabla para evitar re-renderizados masivos al teclear.
 const NoteInput = memo(({ 
     initialValue, 
     onSave 
@@ -35,7 +33,6 @@ const NoteInput = memo(({
 }) => {
     const [val, setVal] = useState(initialValue);
 
-    // Sincronizar si el valor externo cambia (ej: reset)
     useEffect(() => {
         setVal(initialValue);
     }, [initialValue]);
@@ -48,7 +45,7 @@ const NoteInput = memo(({
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
-            e.currentTarget.blur(); // Dispara onBlur
+            e.currentTarget.blur();
         }
     };
 
@@ -59,7 +56,7 @@ const NoteInput = memo(({
             onChange={e => setVal(e.target.value)}
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
-            className="w-full bg-white/50 dark:bg-black/20 p-2 rounded-lg border border-transparent focus:border-brand-300 focus:bg-white dark:focus:bg-slate-800 outline-none text-xs transition-all placeholder:text-slate-400"
+            className="w-full bg-gray-50 dark:bg-black/20 p-2 rounded-lg border border-transparent focus:border-brand-300 focus:bg-white dark:focus:bg-slate-800 outline-none text-xs transition-all placeholder:text-slate-400"
             placeholder="Añadir nota..."
         />
     );
@@ -132,11 +129,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             const matchesSeccion = seccionFilter === 'Todas' || seccionStr === seccionFilter;
             if (!matchesSeccion) return false;
 
-            // Filtro por Familia
-            // art.Familia contiene el código (ej: "5"). familiaFilter contiene el código (ej: "05" o "5")
-            // Convertimos a entero para comparar seguro, o string trim
             if (familiaFilter !== 'Todas') {
-                 // Convertimos a número para asegurar que "05" == "5"
                  const artFam = parseInt(art.Familia);
                  const filterFam = parseInt(familiaFilter);
                  if (isNaN(artFam) || isNaN(filterFam) || artFam !== filterFam) {
@@ -146,6 +139,14 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             
             const ref = String(art.Referencia).trim();
             const articleTariffs = tariffsByArticle.get(ref) || [];
+
+            if (!isComparing && zonaFilter !== 'Todas') {
+                const t = articleTariffs.find(at => at.Tienda === zonaFilter);
+                if (!t) return false; 
+                const precioRaw = t['P.V.P.'] ? String(t['P.V.P.']).replace(',', '.') : '0';
+                const precio = parseFloat(precioRaw);
+                if (isNaN(precio) || precio <= 0) return false; 
+            }
 
             if (showOffers) {
                 const hasOffer = articleTariffs.some(t => 
@@ -163,7 +164,6 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         });
     }, [articulos, tariffsByArticle, searchTerm, zonaFilter, showOffers, showNoPrice, seccionFilter, familiaFilter, isComparing, selectedCompareZones]);
 
-    // Optimización: Callback estable para guardar notas
     const handleSaveNote = (ref: string, val: string) => {
         setNotes(prev => ({ ...prev, [ref]: val }));
     };
@@ -174,18 +174,15 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
     const generateCSV = () => {
         const dataToExport = exportType === 'Completo' ? filteredData : filteredData.filter(a => notes[a.Referencia]);
         
-        // 1. Construir Cabeceras: Nota va AL FINAL
         const priceHeaders = isComparing 
             ? selectedCompareZones.map(z => `;${z}`).join('') 
             : ';PVP';
             
         let headers = `Referencia;Descripción;Coste${priceHeaders};Nota`;
 
-        // 2. Construir Filas
         const rows = dataToExport.map(art => {
             let row = `${art.Referencia};${art.Descripción};${art['Ult. Costo']}`;
             
-            // Añadir precios antes de la nota
             if (isComparing) {
                 selectedCompareZones.forEach(z => {
                     const t = getTariffForZone(art.Referencia, z);
@@ -196,9 +193,7 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                 row += `;${t?.['P.V.P.'] || '-'}`;
             }
 
-            // Añadir nota al final
             row += `;${notes[art.Referencia] || ''}`;
-            
             return row;
         });
         
@@ -218,10 +213,12 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
         if (e) e.preventDefault();
         
         setIsSending(true);
+        const supervisorRealName = user?.nombre || 'Supervisor';
+        
         const newReport: Report = {
             id: Date.now().toString(),
             date: new Date().toLocaleString(),
-            supervisorName: user?.nombre || 'Supervisor',
+            supervisorName: supervisorRealName,
             zoneFilter: isComparing ? selectedCompareZones.join(', ') : zonaFilter,
             type: exportType,
             csvContent: generateCSV(),
@@ -236,15 +233,20 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             const templateID = 'template_aogq9fr';
             const publicKey = 's0Y3v_8CMdSiSPqVz';
 
+            // ENVÍO ROBUSTO DE EMAIL: 
+            // Enviamos el nombre del supervisor en varias variables comunes
+            // para maximizar la compatibilidad con la plantilla existente.
             const templateParams = {
-                supervisor: newReport.supervisorName,
+                supervisor: supervisorRealName,
+                from_name: supervisorRealName, // Standard EmailJS field
+                user_name: supervisorRealName, // Common alternative
                 zona: newReport.zoneFilter,
                 tipo: newReport.type,
-                fecha: newReport.date
+                fecha: newReport.date,
+                message: `Nuevo reporte enviado por: ${supervisorRealName}` // Fallback message
             };
 
             await emailjs.send(serviceID, templateID, templateParams, publicKey);
-            console.log("📧 Correo enviado correctamente via EmailJS");
             alert("✅ Listado enviado y administrador notificado por correo.");
 
         } catch (error) {
@@ -260,29 +262,28 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
 
     return (
         <div className="flex flex-col h-screen bg-[#f3f4f6] dark:bg-slate-950">
-            {/* Header, filters, etc. */}
-            <header className="bg-white dark:bg-slate-900 p-4 border-b dark:border-slate-800 flex items-center gap-4 shadow-sm z-10">
-                 {onBack && <button onClick={onBack}><ArrowLeftIcon className="w-5 h-5" /></button>}
-                <div className="relative flex-grow"><input type="text" placeholder="Buscar por descripción o referencia..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 bg-gray-50 dark:bg-slate-800 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-brand-500" /><SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /></div>
+            <header className="bg-white dark:bg-slate-900 p-4 border-b dark:border-slate-800 flex items-center gap-4 shadow-sm z-40 overflow-x-auto min-h-[72px] whitespace-nowrap">
+                 {onBack && <button onClick={onBack} className="flex-shrink-0"><ArrowLeftIcon className="w-5 h-5" /></button>}
+                <div className="relative flex-grow min-w-[200px]"><input type="text" placeholder="Buscar por descripción o referencia..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 pr-4 py-2 bg-gray-50 dark:bg-slate-800 rounded-lg w-full text-sm outline-none focus:ring-2 focus:ring-brand-500" /><SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" /></div>
                 
-                <select value={seccionFilter} onChange={e => setSeccionFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-medium">
+                <select value={seccionFilter} onChange={e => setSeccionFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-medium cursor-pointer">
                     <option>Todas</option>
                     <option>Carnicería</option>
                     <option>Charcutería</option>
                 </select>
 
-                <select value={familiaFilter} onChange={e => setFamiliaFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-medium max-w-[150px]">
+                <select value={familiaFilter} onChange={e => setFamiliaFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-medium max-w-[150px] cursor-pointer">
                     <option value="Todas">Todas las Familias</option>
                     {families.map(f => (
                         <option key={f.id} value={f.id}>{f.nombre}</option>
                     ))}
                 </select>
 
-                <select value={zonaFilter} disabled={isComparing} onChange={e => setZonaFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50 font-medium"><option>Todas</option>{posList.map(p=><option key={p.id}>{p.zona}</option>)}</select>
-                <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={showOffers} onChange={e => setShowOffers(e.target.checked)} className="rounded text-brand-600"/> Ofertas</label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={showNoPrice} onChange={e => setShowNoPrice(e.target.checked)} className="rounded text-brand-600"/> Sin Precio</label>
-                <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={isComparing} onChange={e => setIsComparing(e.target.checked)} className="rounded text-brand-600"/> Comparar</label>
-                <div className="ml-auto flex items-center gap-4">
+                <select value={zonaFilter} disabled={isComparing} onChange={e => setZonaFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50 font-medium cursor-pointer"><option>Todas</option>{posList.map(p=><option key={p.id}>{p.zona}</option>)}</select>
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none"><input type="checkbox" checked={showOffers} onChange={e => setShowOffers(e.target.checked)} className="rounded text-brand-600"/> Ofertas</label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none"><input type="checkbox" checked={showNoPrice} onChange={e => setShowNoPrice(e.target.checked)} className="rounded text-brand-600"/> Sin Precio</label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none"><input type="checkbox" checked={isComparing} onChange={e => setIsComparing(e.target.checked)} className="rounded text-brand-600"/> Comparar</label>
+                <div className="ml-auto flex items-center gap-4 pl-4 border-l dark:border-slate-700">
                     <button onClick={() => setIsBotOpen(!isBotOpen)} className="text-slate-500 hover:text-brand-600 transition-colors"><SparklesIcon/></button>
                     <button onClick={()=>setIsExportModalOpen(true)} className="text-slate-500 hover:text-brand-600 transition-colors"><UploadIcon/></button>
                     <ThemeToggle/>
@@ -290,22 +291,22 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
                 </div>
             </header>
 
-            {isComparing && <div className="bg-white dark:bg-slate-800 p-2 flex flex-wrap gap-2 border-b dark:border-slate-700 shadow-sm z-10"><label className="flex items-center gap-2 text-sm px-2"><input type="checkbox" onChange={toggleAllZones} className="rounded text-brand-600"/> Todas las Zonas</label>{posList.map(p=><label key={p.id} className="flex items-center gap-2 text-sm px-2"><input type="checkbox" checked={selectedCompareZones.includes(p.zona)} onChange={()=>toggleZone(p.zona)} className="rounded text-brand-600"/>{p.zona}</label>)}</div>}
+            {isComparing && <div className="bg-white dark:bg-slate-800 p-2 flex flex-wrap gap-2 border-b dark:border-slate-700 shadow-sm z-30"><label className="flex items-center gap-2 text-sm px-2"><input type="checkbox" onChange={toggleAllZones} className="rounded text-brand-600"/> Todas las Zonas</label>{posList.map(p=><label key={p.id} className="flex items-center gap-2 text-sm px-2"><input type="checkbox" checked={selectedCompareZones.includes(p.zona)} onChange={()=>toggleZone(p.zona)} className="rounded text-brand-600"/>{p.zona}</label>)}</div>}
 
-            <main className="flex-1 overflow-auto p-4 custom-scrollbar">
+            <main className="flex-1 overflow-auto bg-[#f3f4f6] dark:bg-slate-950 relative custom-scrollbar">
                 <table className="w-full text-left text-sm border-separate border-spacing-0">
-                    <thead className="sticky top-0 bg-[#f3f4f6] dark:bg-slate-950 z-10 shadow-sm">
+                    <thead className="sticky top-0 z-[60] shadow-md">
                         <tr>
-                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Cód.</th>
-                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Descripción</th>
-                            {user?.rol !== 'Normal' && <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Coste</th>}
+                            <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">Cód.</th>
+                            <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">Descripción</th>
+                            {user?.rol !== 'Normal' && <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">Coste</th>}
                             {!isComparing ? <>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">PVP</th>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Oferta</th>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Inicio</th>
-                                <th className="p-3 font-bold text-slate-500 uppercase text-[10px] tracking-wider">Fin</th>
-                            </> : selectedCompareZones.map(z=><th key={z} className="p-3 font-bold text-slate-500 uppercase text-[10px] text-center tracking-wider">{z}</th>)}
-                            <th className="p-3 font-bold text-slate-500 uppercase text-[10px] w-1/4 tracking-wider">Nota de Supervisor</th>
+                                <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">PVP</th>
+                                <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">Oferta</th>
+                                <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">Inicio</th>
+                                <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">Fin</th>
+                            </> : selectedCompareZones.map(z=><th key={z} className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] text-center tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">{z}</th>)}
+                            <th className="p-3 bg-white dark:bg-slate-900 font-bold text-slate-600 dark:text-slate-300 uppercase text-[10px] w-1/4 tracking-wider border-b border-gray-200 dark:border-slate-700 sticky top-0">Nota de Supervisor</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-900 divide-y dark:divide-slate-800">
