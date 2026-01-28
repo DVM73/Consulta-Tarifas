@@ -13,46 +13,72 @@ import HistoryIcon from './icons/HistoryIcon';
 import SettingsIcon from './icons/SettingsIcon';
 import HelpIcon from './icons/HelpIcon';
 import SparklesIcon from './icons/SparklesIcon';
+import ArrowDownIcon from './icons/ArrowDownIcon';
 import { getAppData, saveAllData, overwriteAllData } from '../services/dataService';
 
 // --- VISTAS DE SOLO LECTURA PARA SUPERVISOR ---
 
-export const ReadOnlyUsersList: React.FC<{ users: User[], posList: PointOfSale[] }> = ({ users, posList }) => (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden animate-fade-in max-h-[80vh] flex flex-col">
-        <div className="p-6 border-b dark:border-slate-700 shrink-0">
-            <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">Usuarios</h2>
+export const ReadOnlyUsersList: React.FC<{ users: User[], posList: PointOfSale[] }> = ({ users, posList }) => {
+    // Ordenamiento Numérico Estricto por Cód. Tienda (Idéntico al panel de Admin)
+    const sortedUsers = useMemo(() => {
+        const sorted = [...users];
+        return sorted.sort((a, b) => {
+            // Buscamos la tienda asociada a la zona de cada usuario
+            const posA = posList.find(p => p.zona.toUpperCase() === a.zona.toUpperCase());
+            const posB = posList.find(p => p.zona.toUpperCase() === b.zona.toUpperCase());
+            
+            // Extraemos el código numérico. Si no tiene tienda (ej. Admin), usamos 99999 para que vaya al final.
+            const codeA = posA && posA.código ? parseInt(posA.código, 10) : 99999;
+            const codeB = posB && posB.código ? parseInt(posB.código, 10) : 99999;
+
+            // Si los códigos son iguales (ej: dos empleados en la misma tienda o dos admins)
+            if (codeA === codeB) {
+                // Ordenar alfabéticamente por nombre
+                return a.nombre.localeCompare(b.nombre);
+            }
+
+            // Orden ascendente por código de tienda (1, 2, 7, 10...)
+            return codeA - codeB;
+        });
+    }, [users, posList]);
+
+    return (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden animate-fade-in max-h-[80vh] flex flex-col">
+            <div className="p-6 border-b dark:border-slate-700 shrink-0">
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">Usuarios</h2>
+            </div>
+            <div className="overflow-auto custom-scrollbar">
+                <table className="w-full text-left text-sm border-separate border-spacing-0">
+                    <thead className="sticky top-0 z-20 shadow-sm">
+                        <tr>
+                            <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Cód. Tienda</th>
+                            <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Zona</th>
+                            <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Nombre</th>
+                            <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Departamento</th>
+                            <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Grupo</th>
+                            <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Ver PVP</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y dark:divide-slate-700">
+                        {sortedUsers.map(u => {
+                            const uPos = posList.find(p => p.zona === u.zona);
+                            return (
+                                <tr key={u.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                    <td className="p-4 font-bold">{uPos?.código || '--'}</td>
+                                    <td className="p-4 font-medium">{u.zona}</td>
+                                    <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{u.nombre}</td>
+                                    <td className="p-4 text-slate-500">{u.departamento}</td>
+                                    <td className="p-4 text-slate-500">{u.grupo}</td>
+                                    <td className="p-4 font-bold">{u.verPVP ? 'Sí' : 'No'}</td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div className="overflow-auto custom-scrollbar">
-            <table className="w-full text-left text-sm border-separate border-spacing-0">
-                <thead className="sticky top-0 z-20 shadow-sm">
-                    <tr>
-                        <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Cód. Tienda</th>
-                        <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Zona</th>
-                        <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Nombre</th>
-                        <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Departamento</th>
-                        <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Grupo</th>
-                        <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Ver PVP</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y dark:divide-slate-700">
-                    {users.map(u => {
-                        const uPos = posList.find(p => p.zona === u.zona);
-                        return (
-                            <tr key={u.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-900/50 transition-colors">
-                                <td className="p-4 font-bold">{uPos?.código || '--'}</td>
-                                <td className="p-4 font-medium">{u.zona}</td>
-                                <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{u.nombre}</td>
-                                <td className="p-4 text-slate-500">{u.departamento}</td>
-                                <td className="p-4 text-slate-500">{u.grupo}</td>
-                                <td className="p-4 font-bold">{u.verPVP ? 'Sí' : 'No'}</td>
-                            </tr>
-                        );
-                    })}
-                </tbody>
-            </table>
-        </div>
-    </div>
-);
+    );
+};
 
 export const ReadOnlyPOSList: React.FC<{ pos: PointOfSale[] }> = ({ pos }) => (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden animate-fade-in max-h-[80vh] flex flex-col">
@@ -131,7 +157,6 @@ interface ViewProps {
     onUpdate: (newData: Partial<AppData>) => void;
 }
 
-// CORRECCIÓN: Ahora aceptamos posList como prop obligatoria para garantizar el ordenamiento
 export const UsersList: React.FC<{ users: User[], posList: PointOfSale[] } & ViewProps> = ({ users, posList, onUpdate }) => {
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -148,26 +173,14 @@ export const UsersList: React.FC<{ users: User[], posList: PointOfSale[] } & Vie
         verPVP: false 
     });
 
-    // Ordenamiento Numérico Estricto por Cód. Tienda
     const sortedUsers = useMemo(() => {
         const sorted = [...users];
         return sorted.sort((a, b) => {
-            // Buscamos la tienda asociada a la zona de cada usuario
-            // Usamos uppercase para evitar errores de mayúsculas/minúsculas
             const posA = posList.find(p => p.zona.toUpperCase() === a.zona.toUpperCase());
             const posB = posList.find(p => p.zona.toUpperCase() === b.zona.toUpperCase());
-            
-            // Extraemos el código numérico. Si no tiene tienda (ej. Admin), usamos 99999 para que vaya al final.
             const codeA = posA && posA.código ? parseInt(posA.código, 10) : 99999;
             const codeB = posB && posB.código ? parseInt(posB.código, 10) : 99999;
-
-            // Si los códigos son iguales (ej: dos empleados en la misma tienda o dos admins)
-            if (codeA === codeB) {
-                // Ordenar alfabéticamente por nombre
-                return a.nombre.localeCompare(b.nombre);
-            }
-
-            // Orden ascendente por código de tienda (1, 2, 7, 10...)
+            if (codeA === codeB) return a.nombre.localeCompare(b.nombre);
             return codeA - codeB;
         });
     }, [users, posList]);
@@ -767,7 +780,9 @@ export const DataUploadView: React.FC = () => {
     );
 };
 
-export const DataExportView: React.FC = () => {
+// Componente Unificado de Gestión de Datos (Exportación e Importación)
+export const DataManagementView: React.FC = () => {
+    // --- LÓGICA DE EXPORTACIÓN ---
     const handleExport = async () => {
         const data = await getAppData();
         const json = JSON.stringify(data, null, 2);
@@ -781,21 +796,82 @@ export const DataExportView: React.FC = () => {
         document.body.removeChild(link);
     };
 
+    // --- LÓGICA DE IMPORTACIÓN ---
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [loading, setLoading] = useState(false);
+
+    const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const text = evt.target?.result as string;
+            try {
+                const data = JSON.parse(text);
+                if (data && data.users && data.pos) {
+                    if (confirm(`Se han detectado ${data.users.length} usuarios y ${data.pos.length} tiendas. ¿Deseas restaurar esta copia? Se sobrescribirán los datos actuales.`)) {
+                        setLoading(true);
+                        await overwriteAllData(data);
+                        alert("✅ Restauración completada con éxito. La página se recargará.");
+                        window.location.reload();
+                    }
+                } else {
+                    alert("❌ El archivo no parece ser una copia de seguridad válida.");
+                }
+            } catch (error) {
+                alert("❌ Error procesando el archivo JSON. Verifica el formato.");
+            } finally {
+                setLoading(false);
+            }
+        };
+        reader.readAsText(file);
+    };
+
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-10 animate-fade-in max-w-lg mx-auto text-center">
-            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center text-indigo-600 mb-6 mx-auto">
-                <ExportIcon className="w-10 h-10" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
+            {/* SECCIÓN DE EXPORTACIÓN */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-10 text-center flex flex-col justify-center h-full">
+                <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 rounded-full flex items-center justify-center text-indigo-600 mb-6 mx-auto">
+                    <ExportIcon className="w-10 h-10" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 uppercase tracking-tight">Exportar Base de Datos</h2>
+                <p className="text-slate-500 mb-8">Descarga una copia completa de todos los datos en formato JSON para seguridad o migración.</p>
+                <button onClick={handleExport} className="w-full bg-brand-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-brand-600/20 hover:bg-brand-700 transition-all uppercase text-xs tracking-widest flex items-center justify-center gap-3">
+                    <ExportIcon className="w-5 h-5"/> Descargar Copia JSON
+                </button>
             </div>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 uppercase tracking-tight">Exportar Base de Datos</h2>
-            <p className="text-slate-500 mb-8">Descarga una copia completa de todos los datos en formato JSON.</p>
-            <button onClick={handleExport} className="w-full bg-brand-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-brand-600/20 hover:bg-brand-700 transition-all uppercase text-xs tracking-widest flex items-center justify-center gap-3">
-                <ExportIcon className="w-5 h-5"/> Descargar Copia JSON
-            </button>
+
+            {/* SECCIÓN DE IMPORTACIÓN */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-10 text-center flex flex-col justify-center h-full">
+                <div className="w-20 h-20 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center text-green-600 mb-6 mx-auto">
+                    <ArrowDownIcon className="w-10 h-10" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-2 uppercase tracking-tight">Importar Base de Datos</h2>
+                <p className="text-slate-500 mb-8">Restaura el sistema completo cargando un archivo JSON previamente exportado.</p>
+                
+                <input 
+                    type="file" 
+                    accept=".json" 
+                    ref={fileInputRef}
+                    onChange={handleFile}
+                    className="hidden" 
+                    id="file-restore"
+                />
+                <label 
+                    htmlFor="file-restore" 
+                    className={`w-full bg-brand-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-brand-600/20 hover:bg-brand-700 transition-all uppercase text-xs tracking-widest flex items-center justify-center gap-3 cursor-pointer ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+                >
+                    <UploadIcon className="w-5 h-5"/> {loading ? 'Restaurando...' : 'Seleccionar Archivo JSON'}
+                </label>
+            </div>
         </div>
     );
 };
 
 export const ReportsInboxView: React.FC<{ reports: Report[], onUpdate: any, onRefresh: any }> = ({ reports, onUpdate, onRefresh }) => {
+    const [deleteConfig, setDeleteConfig] = useState({ isOpen: false, id: '', name: '' });
+
     const markAsRead = (r: Report) => {
         const updated = reports.map(rep => rep.id === r.id ? { ...rep, read: true } : rep);
         onUpdate({ reports: updated });
@@ -809,31 +885,80 @@ export const ReportsInboxView: React.FC<{ reports: Report[], onUpdate: any, onRe
         markAsRead(r);
     };
 
+    const handleDelete = () => {
+        const updated = reports.filter(r => r.id !== deleteConfig.id);
+        onUpdate({ reports: updated });
+        setDeleteConfig({ isOpen: false, id: '', name: '' });
+    };
+
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden animate-fade-in flex flex-col max-h-[80vh]">
-            <div className="p-6 border-b dark:border-slate-700 shrink-0 flex justify-between items-center">
-                <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight">Buzón de Reportes</h2>
-                <button onClick={onRefresh} className="text-brand-600 hover:text-brand-800 text-xs font-bold uppercase tracking-widest">Actualizar</button>
+        <>
+            <ConfirmModal 
+                isOpen={deleteConfig.isOpen} 
+                title="¿Eliminar Reporte?" 
+                message={`Se borrará el reporte de ${deleteConfig.name}.`} 
+                onConfirm={handleDelete} 
+                onCancel={() => setDeleteConfig({isOpen: false, id: '', name: ''})} 
+            />
+            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 overflow-hidden animate-fade-in flex flex-col max-h-[80vh]">
+                <div className="p-6 border-b dark:border-slate-700 shrink-0 flex justify-between items-center">
+                    <h2 className="text-lg font-bold text-slate-800 dark:text-white uppercase tracking-tight flex items-center gap-2"><MailIcon className="w-5 h-5"/> Buzón de Reportes</h2>
+                    <button onClick={onRefresh} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Actualizar</button>
+                </div>
+                <div className="overflow-auto custom-scrollbar">
+                    <table className="w-full text-left text-sm border-separate border-spacing-0">
+                        <thead className="sticky top-0 z-20 shadow-sm">
+                            <tr>
+                                <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Estado</th>
+                                <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Fecha</th>
+                                <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Supervisor</th>
+                                <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Zona</th>
+                                <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px]">Tipo</th>
+                                <th className="p-4 bg-gray-50 dark:bg-slate-900 border-b dark:border-slate-700 text-slate-500 font-bold uppercase text-[10px] text-center">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y dark:divide-slate-700">
+                            {reports.length === 0 && (
+                                <tr>
+                                    <td colSpan={6} className="p-10 text-center text-slate-400 italic">No hay reportes recibidos.</td>
+                                </tr>
+                            )}
+                            {reports.map(r => (
+                                <tr key={r.id} className="hover:bg-gray-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                                    <td className="p-4">
+                                        {r.read ? (
+                                            <span className="flex items-center gap-2 text-green-600 dark:text-green-400 font-bold text-[10px] uppercase bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded border border-green-100 dark:border-green-800 w-fit">
+                                                ✓ DESCARGADO
+                                            </span>
+                                        ) : (
+                                            <span className="flex items-center gap-2 text-slate-400 font-bold text-[10px] uppercase border border-dashed border-slate-300 px-2 py-1 rounded w-fit">
+                                                ○ PENDIENTE
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="p-4 text-slate-600 dark:text-slate-300 font-mono text-xs">{r.date}</td>
+                                    <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{r.supervisorName}</td>
+                                    <td className="p-4 text-slate-500">{r.zoneFilter}</td>
+                                    <td className="p-4">
+                                        <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded text-[10px] font-bold uppercase border border-yellow-200">{r.type}</span>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <div className="flex justify-center gap-4">
+                                            <button onClick={() => downloadCSV(r)} className="text-green-600 hover:scale-125 transition-all" title="Descargar CSV">
+                                                <ExportIcon className="w-5 h-5"/>
+                                            </button>
+                                            <button onClick={() => setDeleteConfig({isOpen: true, id: r.id, name: r.supervisorName})} className="text-red-500 hover:scale-125 transition-all" title="Borrar Reporte">
+                                                <TrashIcon className="w-5 h-5"/>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            <div className="overflow-auto custom-scrollbar p-4 space-y-3">
-                {reports.length === 0 && <div className="text-center p-10 text-slate-400 italic">No hay reportes recibidos.</div>}
-                {reports.map(r => (
-                    <div key={r.id} className={`p-5 rounded-xl border transition-all flex justify-between items-center ${r.read ? 'bg-white dark:bg-slate-900 border-gray-100 dark:border-slate-700 opacity-70' : 'bg-blue-50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800 shadow-sm'}`}>
-                        <div>
-                            <div className="flex items-center gap-3 mb-1">
-                                {!r.read && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>}
-                                <h4 className="font-bold text-slate-800 dark:text-slate-200">{r.supervisorName}</h4>
-                                <span className="text-[10px] bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300 font-bold uppercase">{r.type}</span>
-                            </div>
-                            <p className="text-xs text-slate-500 mb-1">Zona: <span className="font-bold">{r.zoneFilter}</span> • {r.date}</p>
-                        </div>
-                        <button onClick={() => downloadCSV(r)} className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg font-bold text-xs uppercase hover:bg-brand-50 dark:hover:bg-slate-700 hover:text-brand-600 hover:border-brand-200 transition-all flex items-center gap-2">
-                            <ExportIcon className="w-4 h-4"/> Descargar CSV
-                        </button>
-                    </div>
-                ))}
-            </div>
-        </div>
+        </>
     );
 };
 

@@ -28,7 +28,7 @@ export type AdminView =
   | 'groups'
   | 'families'
   | 'upload'
-  | 'export'
+  | 'data_io'
   | 'backup'
   | 'settings'
   | 'password'

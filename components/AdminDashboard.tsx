@@ -14,9 +14,10 @@ import MailIcon from './icons/MailIcon';
 import HistoryIcon from './icons/HistoryIcon';
 import ChatIcon from './icons/ChatIcon';
 import ArrowLeftIcon from './icons/ArrowLeftIcon';
+import ArrowDownIcon from './icons/ArrowDownIcon';
 import FlagIcon from './icons/FlagIcon';
 import TagIcon from './icons/TagIcon';
-import { UsersList, POSList, GroupsList, DataUploadView, DataExportView, ReportsInboxView, BackupView, SettingsView, FamiliesList } from './AdminViews';
+import { UsersList, POSList, GroupsList, DataUploadView, DataManagementView, ReportsInboxView, BackupView, SettingsView, FamiliesList } from './AdminViews';
 
 const AdminDashboard: React.FC = () => {
     const { logout, user } = useContext(AppContext);
@@ -46,13 +47,12 @@ const AdminDashboard: React.FC = () => {
     const renderContent = () => {
         if (!data) return <div className="text-center p-10 font-bold text-red-500 uppercase text-xs tracking-widest">Error de base de datos</div>;
         switch (view) {
-            // CORRECCIÓN AQUÍ: Pasamos posList explícitamente a UsersList
             case 'users': return <UsersList users={data.users || []} posList={data.pos || []} onUpdate={handleUpdateData} />;
             case 'pos': return <POSList pos={data.pos || []} onUpdate={handleUpdateData} />;
             case 'groups': return <GroupsList groups={data.groups || []} onUpdate={handleUpdateData} />;
             case 'families': return <FamiliesList families={data.families || []} onUpdate={handleUpdateData} />;
             case 'upload': return <DataUploadView />;
-            case 'export': return <DataExportView />;
+            case 'data_io': return <DataManagementView />;
             case 'reports': return <ReportsInboxView reports={data.reports || []} onUpdate={handleUpdateData} onRefresh={refreshData} />;
             case 'backup': return <BackupView backups={data.backups || []} currentData={data} onUpdate={handleUpdateData} />;
             case 'settings': return (
@@ -77,7 +77,19 @@ const AdminDashboard: React.FC = () => {
         { id: 'groups', label: 'Administración de Grupos', desc: 'Gestionar los grupos de tiendas.', icon: BuildingIcon },
         { id: 'families', label: 'Administración de Familias', desc: 'Gestionar códigos y nombres de familias.', icon: TagIcon },
         { id: 'upload', label: 'Carga de datos', desc: 'Subir archivos CSV de artículos y tarifas.', icon: UploadIcon },
-        { id: 'export', label: 'Exportación de datos', desc: 'Exportar todos los datos a JSON.', icon: ExportIcon },
+        { 
+            id: 'data_io', 
+            label: 'Exportación / Importación Datos', 
+            desc: 'Gestionar copias JSON completas del sistema.', 
+            // Icono combinado personalizado para este caso
+            icon: (props: any) => (
+                <div className="relative w-12 h-12 flex justify-center items-center">
+                    <ExportIcon {...props} className="w-6 h-6 absolute top-0 left-0 text-brand-600" />
+                    <ArrowDownIcon {...props} className="w-6 h-6 absolute bottom-0 right-0 text-brand-400" />
+                </div>
+            ),
+            isCustomIcon: true
+        },
         { id: 'reports', label: 'Buzón de Reportes', desc: 'Ver informes enviados por supervisores.', icon: MailIcon },
         { id: 'backup', label: 'Copia de Seguridad', desc: 'Crear una copia de la aplicación.', icon: HistoryIcon },
         { id: 'settings', label: 'Configuración General', desc: 'Personalizar nombre de empresa.', icon: SettingsIcon },
@@ -129,7 +141,8 @@ const AdminDashboard: React.FC = () => {
                                     )}
                                     
                                     <div className="mb-6 text-brand-500">
-                                        <item.icon className="w-12 h-12 stroke-[1.5]" />
+                                        {/* @ts-ignore: Manejo de iconos personalizados vs componentes */}
+                                        {item.isCustomIcon ? <item.icon /> : <item.icon className="w-12 h-12 stroke-[1.5]" />}
                                     </div>
                                     <h3 className="font-bold text-slate-800 dark:text-white text-base mb-2">{item.label}</h3>
                                     <p className="text-slate-400 text-xs">{item.desc}</p>
