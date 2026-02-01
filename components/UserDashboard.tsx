@@ -233,17 +233,14 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             const templateID = 'template_aogq9fr';
             const publicKey = 's0Y3v_8CMdSiSPqVz';
 
-            // ENVÍO ROBUSTO DE EMAIL: 
-            // Enviamos el nombre del supervisor en varias variables comunes
-            // para maximizar la compatibilidad con la plantilla existente.
             const templateParams = {
                 supervisor: supervisorRealName,
-                from_name: supervisorRealName, // Standard EmailJS field
-                user_name: supervisorRealName, // Common alternative
+                from_name: supervisorRealName,
+                user_name: supervisorRealName,
                 zona: newReport.zoneFilter,
                 tipo: newReport.type,
                 fecha: newReport.date,
-                message: `Nuevo reporte enviado por: ${supervisorRealName}` // Fallback message
+                message: `Nuevo reporte enviado por: ${supervisorRealName}`
             };
 
             await emailjs.send(serviceID, templateID, templateParams, publicKey);
@@ -371,7 +368,10 @@ const UserDashboard: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
             </main>
 
             {isExportModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+                <div 
+                    className="fixed inset-0 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+                    style={{ zIndex: 99999 }}
+                >
                     <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-xl shadow-2xl border border-gray-100 dark:border-slate-800 overflow-hidden">
                         <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
                             <div className="flex items-center gap-3">

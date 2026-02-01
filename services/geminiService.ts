@@ -1,66 +1,36 @@
 
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 
+// DIAGNÓSTICO DE INICIO
+if (!process.env.API_KEY) {
+    console.error("❌ ERROR CRÍTICO: No se ha detectado la API_KEY en el entorno.");
+} else {
+    console.log("🔑 Estado API Key: Detectada (Longitud: " + process.env.API_KEY.length + ")");
+}
+
+// Inicialización estricta según las directrices de la plataforma.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
 let chatSession: Chat | null = null;
-let aiClient: GoogleGenAI | null = null;
 
-// Función para obtener el cliente, asegurando que se crea con la clave
-const getAiClient = (): GoogleGenAI | null => {
-    // Si ya existe, devolverlo
-    if (aiClient) return aiClient;
-    
-    // Obtener clave directamente del proceso
-    const apiKey = process.env.API_KEY;
-    
-    if (!apiKey) {
-        console.warn("⚠️ API Key de Google GenAI no detectada en environment.");
-        return null;
-    } else {
-        // Debug seguro (solo para verificar que no está vacía)
-        console.log("🔑 API Key detectada (Longitud: " + apiKey.length + ")");
-    }
-    
-    try {
-        // Crear nueva instancia explícita
-        aiClient = new GoogleGenAI({ apiKey: apiKey });
-        return aiClient;
-    } catch (e) {
-        console.error("Error fatal inicializando cliente AI:", e);
-        return null;
-    }
-};
-
-// Función para iniciar o reiniciar el chat con un contexto específico
+/**
+ * Inicia o reinicia la sesión de chat con el contexto proporcionado.
+ */
 export async function startNewChat(contextData: string = ""): Promise<void> {
-    // Forzar reinicio del cliente para asegurar frescura
-    aiClient = null; 
-    const ai = getAiClient();
-    
-    if (!ai) {
-        console.error("No se puede iniciar el chat: Cliente AI no disponible.");
-        chatSession = null;
-        return;
-    }
-
     const systemInstruction = `
 Eres Gemini, un asistente de inteligencia artificial integrado en la aplicación corporativa "Consulta de Tarifas".
 
 TU COMPORTAMIENTO DEBE SER:
-1. **Idioma:** DEBES RESPONDER SIEMPRE EN ESPAÑOL. No importa el idioma en el que te hablen, tu respuesta debe ser en un español claro y profesional.
-2. **Versátil:** Puedes responder a CUALQUIER pregunta, ya sea sobre la aplicación, sobre los datos que ves, o temas generales.
-3. **Analítico (Si hay datos):** A continuación se te proporcionará un "CONTEXTO DE DATOS ACTUAL". Si contiene información, úsala para responder preguntas sobre precios, productos o estadísticas. Si está vacío, actúa como un chat normal.
-4. **Profesional y Conciso:** Tus respuestas deben ser útiles y directas.
+1. **Idioma:** DEBES RESPONDER SIEMPRE EN ESPAÑOL.
+2. **Rol:** Asistente profesional, servicial y experto en los datos de la empresa.
+3. **Contexto:** A continuación tienes los datos que el usuario está viendo en pantalla. Úsalos para responder preguntas sobre precios, productos o existencias.
 
-CONTEXTO DE DATOS ACTUAL (Lo que ve el usuario):
+CONTEXTO DE DATOS ACTUAL:
 ${contextData ? contextData.substring(0, 50000) : "El usuario no está visualizando datos específicos ahora mismo."}
-
-EJEMPLOS DE INTERACCIÓN:
-- Usuario: "¿Qué precio tiene el jamón?" -> (Buscas en el contexto y respondes en español).
-- Usuario: "Write an email for employees." -> (Redactas el correo EN ESPAÑOL).
-- Usuario: "Hola, ¿qué puedes hacer?" -> (Te presentas en español).
     `;
 
     try {
+        // Intentamos crear el chat con el modelo principal
         chatSession = ai.chats.create({
             model: 'gemini-3-flash-preview',
             config: {
@@ -68,44 +38,45 @@ EJEMPLOS DE INTERACCIÓN:
                 temperature: 0.7,
             },
         });
-        console.log("Chat de Gemini inicializado correctamente.");
+        console.log("✅ Sesión de chat IA iniciada correctamente.");
     } catch (error) {
-        console.error("Error al crear sesión de chat Gemini:", error);
+        console.error("❌ Error al iniciar sesión de chat:", error);
         chatSession = null;
     }
 }
 
+/**
+ * Envía un mensaje al bot y obtiene la respuesta.
+ */
 export async function getBotResponse(message: string): Promise<string> {
-  try {
-    // Si no hay sesión, intentar iniciar una nueva al vuelo
-    if (!chatSession) {
-        console.log("Intentando recuperar sesión de chat perdida...");
-        await startNewChat();
-    }
+    try {
+        // Si la sesión se perdió (por recarga o error previo), intentamos recuperarla
+        if (!chatSession) {
+            await startNewChat();
+        }
 
-    if (!chatSession) {
-        return "Error: No se pudo conectar con el servicio de IA. Verifica tu conexión o API Key.";
-    }
+        if (!chatSession) {
+            return "Lo siento, no puedo conectar con el servicio de IA en este momento. Por favor, verifica tu configuración.";
+        }
 
-    const result: GenerateContentResponse = await chatSession.sendMessage({ message: message });
-    
-    if (result && result.text) {
-        return result.text;
-    } else {
-        return "No he recibido una respuesta válida. Por favor, inténtalo de nuevo.";
-    }
+        const result: GenerateContentResponse = await chatSession.sendMessage({ message: message });
+        
+        if (result && result.text) {
+            return result.text;
+        } else {
+            return "No he podido generar una respuesta. Inténtalo de nuevo.";
+        }
 
-  } catch (error: any) {
-    console.error("Error al comunicarse con la API de Gemini:", error);
-    
-    // IMPORTANTE: Si hay error, invalidamos la sesión para forzar reconexión total en el siguiente mensaje
-    chatSession = null;
-    aiClient = null;
+    } catch (error: any) {
+        console.error("Error en getBotResponse:", error);
+        
+        // Invalidamos la sesión para forzar reinicio en el siguiente intento
+        chatSession = null;
 
-    if (error.message && (error.message.includes('API key') || error.message.includes('403'))) {
-        return "Error de autenticación con la IA. Verifica que la API Key está configurada correctamente en el archivo .env";
+        if (error.message && error.message.includes('API key')) {
+            return "Error de configuración: La API Key no es válida o no se ha encontrado. Revisa la consola.";
+        }
+        
+        return "Ha ocurrido un error al procesar tu solicitud. Inténtalo de nuevo en unos segundos.";
     }
-    
-    return "Lo siento, ha ocurrido un error de conexión con la IA. He reiniciado mi memoria, por favor inténtalo de nuevo.";
-  }
 }
